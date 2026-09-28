@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:function": "node scripts/build-function.mjs",
-    "test": "node tests/cycle.test.mjs && node tests/function.test.mjs"
+    "test": "node tests/cycle.test.mjs && node tests/name.test.mjs && node tests/function.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

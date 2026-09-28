@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { supabase } from '../lib/supabase'
+import { supabase, withRetry, isNetworkError, diagnose } from '../lib/supabase'
+import { extractName } from '../lib/name'
 import { localToday } from '../lib/dates'
 import { prettyDate } from '../lib/cycle'
 import { Logo } from '../App.jsx'
@@ -118,22 +119,36 @@ function labelFor(step, value) {
   return String(value)
 }
 
+const draftKey = id => `hera-onboarding-${id}`
+
+function loadDraft(id) {
+  try { return JSON.parse(localStorage.getItem(draftKey(id))) || null } catch { return null }
+}
+
 export default function Onboarding({ session, onDone }) {
-  const [answers, setAnswers] = useState({})
-  const [index, setIndex] = useState(0)
-  const [transcript, setTranscript] = useState([{ role: 'hera', text: STEPS[0].ask({}) }])
+  const draft = loadDraft(session.user.id)
+  const [answers, setAnswers] = useState(draft?.answers ?? {})
+  const [index, setIndex] = useState(draft?.index ?? 0)
+  const [transcript, setTranscript] = useState(draft?.transcript ?? [{ role: 'hera', text: STEPS[0].ask({}) }])
   const [blocked, setBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const bottom = useRef(null)
 
-  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [transcript, index])
+  useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [transcript, index, error])
+
+  // Keep progress if the app is closed or reloads mid-way.
+  useEffect(() => {
+    try { localStorage.setItem(draftKey(session.user.id), JSON.stringify({ answers, index, transcript })) } catch { /* private mode */ }
+  }, [answers, index, transcript, session.user.id])
 
   const step = STEPS[index]
 
   function answer(value) {
+    const shown = labelFor(step, value)
+    if (step.key === 'name') value = extractName(value) || value.trim()
     const next = { ...answers, [step.key]: value }
-    const lines = [...transcript, { role: 'me', text: labelFor(step, value) }]
+    const lines = [...transcript, { role: 'me', text: shown }]
 
     if (step.key === 'adult' && value === 'no') {
       setTranscript([...lines, {
@@ -175,11 +190,19 @@ export default function Onboarding({ session, onDone }) {
       consent_at: now,
       onboarded_at: now
     }
-    const { data, error } = await supabase.from('profiles').upsert(profile).select().single()
-    if (error) { setSaving(false); setError(error.message); return }
-    if (profile.last_period_start) {
-      await supabase.from('cycle_logs').insert({ user_id: session.user.id, log_date: profile.last_period_start, kind: 'period_start' })
+    const { data, error } = await withRetry(() => supabase.from('profiles').upsert(profile).select().single())
+    if (error) {
+      setSaving(false)
+      setError(isNetworkError(error)
+        ? `I couldn't reach my memory to save this. Check your internet and tap "I understand and agree" again.\n\n${await diagnose()}`
+        : `Couldn't save: ${error.message}`)
+      return
     }
+    if (profile.last_period_start) {
+      await withRetry(() => supabase.from('cycle_logs')
+        .insert({ user_id: session.user.id, log_date: profile.last_period_start, kind: 'period_start' }))
+    }
+    try { localStorage.removeItem(draftKey(session.user.id)) } catch { /* private mode */ }
     onDone(data)
   }
 
@@ -195,7 +218,7 @@ export default function Onboarding({ session, onDone }) {
           <div key={i} className={`bubble ${m.role}`}>{m.text}</div>
         ))}
         {saving && <div className="bubble hera typing"><span /><span /><span /></div>}
-        {error && <p className="error" role="alert">Couldn't save: {error}</p>}
+        {error && <div className="bubble hera failed" role="alert">{error}</div>}
         <div ref={bottom} />
       </main>
 

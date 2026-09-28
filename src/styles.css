@@ -138,3 +138,8 @@ input:focus { outline: 2px solid var(--plum); outline-offset: 1px; }
 .typing span:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } }
+
+.details {
+  white-space: pre-wrap; text-align: left; font-size: .8rem; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; max-width: 380px; width: 100%;
+}
