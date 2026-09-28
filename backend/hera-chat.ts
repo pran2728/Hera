@@ -316,6 +316,39 @@ const RESPONSE_SCHEMA = {
   required: ['reply', 'logs', 'safety_level']
 }
 
+// Ask Google which Flash models this key can use, so retired models never break Hera.
+let modelCache: { at: number; list: string[] } | null = null
+const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest']
+
+async function availableModels(key: string): Promise<string[]> {
+  const pinned = Deno.env.get('GEMINI_MODEL')
+  if (modelCache && Date.now() - modelCache.at < 6 * 3600_000) {
+    return [...new Set([pinned, ...modelCache.list].filter(Boolean))] as string[]
+  }
+  let list = FALLBACK_MODELS
+  try {
+    const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
+      headers: { 'x-goog-api-key': key }
+    })
+    if (res.ok) {
+      const data = await res.json()
+      const names: string[] = (data.models ?? [])
+        .filter((m: { supportedGenerationMethods?: string[] }) => m.supportedGenerationMethods?.includes('generateContent'))
+        .map((m: { name: string }) => m.name.replace(/^models\//, ''))
+        .filter((n: string) => /flash/.test(n) && !/image|tts|audio|live|embedding|thinking|exp|preview|\d{3}$/.test(n))
+      // Newest versions first: 'latest' aliases, then by version number.
+      const version = (n: string) => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? 0)
+      const score = (n: string) => (n.includes('latest') ? 1000 : 0) + version(n) * 10 - (n.includes('lite') ? 1 : 0)
+      names.sort((a, b) => score(b) - score(a))
+      if (names.length) list = [...new Set([...FALLBACK_MODELS, ...names])].slice(0, 5)
+    }
+  } catch (e) {
+    console.error('Could not list Gemini models:', String(e))
+  }
+  modelCache = { at: Date.now(), list }
+  return [...new Set([pinned, ...list].filter(Boolean))] as string[]
+}
+
 async function askGemini(system: string, past: { role: string; content: string }[], message: string): Promise<HeraResult> {
   const key = Deno.env.get('GEMINI_API_KEY')
   if (!key) throw new Error('GEMINI_API_KEY secret is missing')
@@ -330,11 +363,8 @@ async function askGemini(system: string, past: { role: string; content: string }
     else turns.push({ role, parts: [{ text: m.content }] })
   }
 
-  // Free models get busy (503) or rate-limited (429): fall through to the next one.
-  const models = [...new Set([
-    Deno.env.get('GEMINI_MODEL'),
-    'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite'
-  ].filter(Boolean))] as string[]
+  // Free models get busy (503), rate-limited (429) or retired (404): fall through to the next one.
+  const models = await availableModels(key)
   let lastError = ''
   for (const model of models) {
     for (const schema of [true, false]) {

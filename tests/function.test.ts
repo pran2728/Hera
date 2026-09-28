@@ -8,6 +8,15 @@ Deno.env.set('SUPABASE_URL', 'http://x'); Deno.env.set('GEMINI_API_KEY', 'k')
 const realFetch = globalThis.fetch
 let nextAI: unknown = null; let lastAIBody: any = null; let aiStatus = 200; let busyModels: string[] = []; const modelsTried: string[] = []
 globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  if (String(url).includes('/v1beta/models?')) {
+    return new Response(JSON.stringify({ models: [
+      { name: 'models/gemini-2.5-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-4.0-flash', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-4.0-flash-lite', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/gemini-4.0-flash-image', supportedGenerationMethods: ['generateContent'] },
+      { name: 'models/text-embedding-004', supportedGenerationMethods: ['embedContent'] }
+    ] }))
+  }
   if (String(url).includes('googleapis')) {
     lastAIBody = JSON.parse(String(init?.body))
     const model = String(url).split('/models/')[1].split(':')[0]; modelsTried.push(model)
@@ -95,11 +104,12 @@ Deno.test('full flow', async (t) => {
   })
 
   await t.step('busy model falls back to the next one', async () => {
-    busyModels = ['gemini-flash-latest', 'gemini-2.5-flash']; modelsTried.length = 0
+    busyModels = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash']; modelsTried.length = 0
     nextAI = { reply: 'Hey babe, I got you', logs: [], safety_level: 'none' }
     const r = await call({ message: 'hi', today: '2026-09-28' })
     assertEquals(r.json.reply, 'Hey babe, I got you')
-    assertEquals(modelsTried, ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest'])
+    // discovered models, newest first, image models skipped
+    assertEquals(modelsTried, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash', 'gemini-4.0-flash-lite'])
     busyModels = []
   })
 
