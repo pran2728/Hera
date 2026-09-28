@@ -225,3 +225,4 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .link.danger { color: var(--error); }
 .facts dt { white-space: nowrap; }
 .facts dd small { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); }
+.retry { display: block; margin-top: 10px; }

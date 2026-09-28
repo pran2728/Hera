@@ -66,22 +66,35 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
 
-  async function send(e) {
+  async function ask(message) {
+    let res = await supabase.functions.invoke('hera-chat', { body: { message, today: localToday() } })
+    // A dropped connection usually means the request never arrived: retry once.
+    if (res.error instanceof FunctionsFetchError) {
+      await new Promise(r => setTimeout(r, 1500))
+      res = await supabase.functions.invoke('hera-chat', { body: { message, today: localToday() } })
+    }
+    return res
+  }
+
+  async function send(e, retryText) {
     e?.preventDefault()
-    const message = text.trim()
+    const message = (retryText ?? text).trim()
     if (!message || thinking) return
-    setText('')
-    setMessages(m => [...m, { id: `me-${Date.now()}`, role: 'user', content: message }])
+    if (retryText) {
+      setMessages(m => m.filter(x => x.retry !== retryText || !x.failed)) // drop the failed reply
+    } else {
+      setText('')
+      setMessages(m => [...m, { id: `me-${Date.now()}`, role: 'user', content: message }])
+    }
     setThinking(true)
 
-    const { data, error } = await supabase.functions.invoke('hera-chat', {
-      body: { message, today: localToday() }
-    })
+    const { data, error } = await ask(message)
     setThinking(false)
     const reply = error ? await explain(error) : data.reply
+    const failed = !!error || !!data?.error
     setMessages(m => [...m, {
       id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,
-      failed: !!error || !!data?.error, detail: data?.detail
+      failed, detail: data?.detail, retry: failed ? message : undefined
     }])
     if (data?.cycle) setCycle(data.cycle)
     input.current?.focus()
@@ -131,6 +144,9 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
           <div key={m.id} className={`bubble ${m.role === 'user' ? 'me' : 'hera'} ${m.failed ? 'failed' : ''}`}>
             {m.content}
             {m.detail && <div className="detail-line">Details: {m.detail}</div>}
+            {m.failed && m.retry && (
+              <button className="chip small retry" disabled={thinking} onClick={() => send(null, m.retry)}>Try again</button>
+            )}
             {m.logged?.length > 0 && (
               <div className="logged">
                 {m.logged.map((l, i) => (
