@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
-import { computeCycle, prettyDate, PHASE_LABELS } from '../lib/cycle'
+import { computeCycle, prettyDate, daysBetween, PHASE_LABELS } from '../lib/cycle'
 import { periodDays, predictedDays, monthGrid } from '../lib/calendar'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -72,7 +72,7 @@ export default function MyCycle({ userId, onBack }) {
         {!view && !error && <div className="bubble hera typing"><span /><span /><span /></div>}
         {view && (
           <>
-            <Summary cycle={view.cycle} />
+            <Summary cycle={view.cycle} today={today} />
 
             <section className="card calendar" aria-label="Calendar">
               <div className="cal-head">
@@ -127,7 +127,7 @@ export default function MyCycle({ userId, onBack }) {
   )
 }
 
-function Summary({ cycle }) {
+function Summary({ cycle, today }) {
   const message = {
     pregnant: "You're in pregnancy mode, so I'm not predicting periods. Tell me how you're feeling anytime.",
     menopause: "You're postmenopausal, so there's no cycle to predict. Any bleeding now is worth checking with a doctor.",
@@ -146,30 +146,64 @@ function Summary({ cycle }) {
     )
   }
 
+  const tip = cycle.lateLuteal ? PHASE_TIPS.lateLuteal : PHASE_TIPS[cycle.phase]
+  const until = daysBetween(today, cycle.nextPeriod.from)
   return (
     <section className="card summary">
-      <div>
-        <span className="k">Today</span>
-        <span className="v">
-          {cycle.phase === 'late' ? `Period ${cycle.lateBy} days late` : `Day ${cycle.day} · ${PHASE_LABELS[cycle.phase]}`}
-        </span>
+      <div className="hero">
+        <Ring day={cycle.day} length={cycle.cycleLength} phase={cycle.phase} />
+        <div>
+          <div className={`phase-name ${cycle.phase}`}>{PHASE_LABELS[cycle.phase]}</div>
+          <p className="tip">{tip}</p>
+        </div>
       </div>
-      <div>
-        <span className="k">Next period</span>
-        <span className="v">{prettyDate(cycle.nextPeriod.from)} – {prettyDate(cycle.nextPeriod.to)}</span>
-      </div>
-      <div>
-        <span className="k">Fertile window</span>
-        <span className="v">{prettyDate(cycle.fertileWindow.from)} – {prettyDate(cycle.fertileWindow.to)}</span>
-      </div>
-      <div>
-        <span className="k">Typical cycle</span>
-        <span className="v">{cycle.cycleLength} days</span>
-      </div>
+      <dl className="facts">
+        <div>
+          <dt><i className="sw period" /> Next period</dt>
+          <dd>
+            {shortRange(cycle.nextPeriod.from, cycle.nextPeriod.to)}
+            <small>{until > 1 ? `in ${until} days` : until === 1 ? 'from tomorrow' : 'any day now'}</small>
+          </dd>
+        </div>
+        <div>
+          <dt><i className="sw fertile" /> Fertile window</dt>
+          <dd>{shortRange(cycle.fertileWindow.from, cycle.fertileWindow.to)}</dd>
+        </div>
+      </dl>
       <p className="fine">
-        Based on {cycle.basedOn}.{cycle.rough ? ' Predictions are rough for you, so treat dates as a guide.' : ''} Fertile
-        windows are estimates and never a form of contraception.
+        {cycle.cycleLength}-day cycle, based on {cycle.basedOn}.{cycle.rough ? ' Your dates are rough, so treat them as a guide.' : ''} Estimates only, never contraception.
       </p>
     </section>
   )
 }
+
+const PHASE_TIPS = {
+  menstrual: 'Rest, stay warm, and eat iron-rich food.',
+  follicular: 'Energy is rising. A good time to start new things.',
+  ovulatory: 'Peak energy and confidence. Enjoy it!',
+  luteal: 'Energy slows down. Keep meals regular.',
+  lateLuteal: 'PMS days. Be extra gentle with yourself.'
+}
+
+const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+// '20–26 Oct', or '30 Sep – 4 Oct' across months
+function shortRange(from, to) {
+  const f = [Number(from.slice(8)), MON[Number(from.slice(5, 7)) - 1]]
+  const t = [Number(to.slice(8)), MON[Number(to.slice(5, 7)) - 1]]
+  return f[1] === t[1] ? `${f[0]}–${t[0]} ${t[1]}` : `${f[0]} ${f[1]} – ${t[0]} ${t[1]}`
+}
+
+function Ring({ day, length, phase }) {
+  const r = 34, c = 2 * Math.PI * r
+  const done = Math.min(day / length, 1)
+  return (
+    <svg className="ring" width="88" height="88" viewBox="0 0 88 88" role="img" aria-label={`Day ${day} of ${length}`}>
+      <circle cx="44" cy="44" r={r} className="ring-track" />
+      <circle cx="44" cy="44" r={r} className={`ring-fill ${phase}`} strokeDasharray={`${c * done} ${c}`}
+              transform="rotate(-90 44 44)" />
+      <text x="44" y="42" textAnchor="middle" className="ring-day">Day {day}</text>
+      <text x="44" y="58" textAnchor="middle" className="ring-of">of {length}</text>
+    </svg>
+  )
+}
+
