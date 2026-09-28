@@ -75,7 +75,10 @@ export default function Chat({ session, profile }) {
     })
     setThinking(false)
     const reply = error ? await explain(error) : data.reply
-    setMessages(m => [...m, { id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged, failed: !!error }])
+    setMessages(m => [...m, {
+      id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,
+      failed: !!error || !!data?.error, detail: data?.detail
+    }])
     if (data?.cycle) setCycle(data.cycle)
     input.current?.focus()
   }
@@ -96,6 +99,7 @@ export default function Chat({ session, profile }) {
         {messages?.map(m => (
           <div key={m.id} className={`bubble ${m.role === 'user' ? 'me' : 'hera'} ${m.failed ? 'failed' : ''}`}>
             {m.content}
+            {m.detail && <div className="detail-line">Details: {m.detail}</div>}
             {m.logged?.length > 0 && (
               <div className="logged">
                 {m.logged.map((l, i) => (

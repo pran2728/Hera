@@ -80,6 +80,18 @@ Deno.test('full flow', async (t) => {
     assert(r.json.reply.includes('minute')); aiStatus = 200
   })
 
+  await t.step('rate limit reply includes a detail line', async () => {
+    aiStatus = 500
+    const r = await call({ message: 'hi', today: '2026-09-28' })
+    assert(String(r.json.detail).startsWith('500')); aiStatus = 200
+  })
+
+  await t.step('she can rename herself from chat', async () => {
+    nextAI = { reply: 'Got it, Pran!', logs: [], safety_level: 'none', profile_updates: { name: 'Pran 💜' } }
+    await call({ message: 'my name is Pran', today: '2026-09-28' })
+    assertEquals(db.profiles[0].name, 'Pran')
+  })
+
   await t.step('history alternates and starts with user', async () => {
     nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
     await call({ message: 'hello again', today: '2026-09-28' })

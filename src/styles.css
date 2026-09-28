@@ -143,3 +143,4 @@ input:focus { outline: 2px solid var(--plum); outline-offset: 1px; }
   white-space: pre-wrap; text-align: left; font-size: .8rem; background: var(--card); color: var(--ink);
   border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; max-width: 380px; width: 100%;
 }
+.detail-line { margin-top: 8px; font-size: .75rem; color: var(--muted); word-break: break-word; }

@@ -227,12 +227,19 @@ Deno.serve(async (req) => {
         ? "Aw, I'm getting a lot of messages right now 🙈 Give me a minute and try again?"
         : "Sorry, I couldn't think straight just now. Can you send that again?"
       console.error('Gemini error:', msg)
-      return json({ reply, logged: [], cycle, error: 'ai_unavailable' })
+      // `detail` is Google's error text (never contains the key), shown small in the app to help debugging.
+      return json({ reply, logged: [], cycle, error: 'ai_unavailable', detail: msg.slice(0, 240) })
     }
 
     // ---- Save what she told us ----
     const logged = await saveLogs(supabase, userId, profile, result.logs ?? [], today)
     if (logged.some(l => l.kind === 'period_start')) cycle = await loadCycle()
+
+    // ---- She asked to be called something else ----
+    const newName = String(result.profile_updates?.name ?? '').replace(/[^\p{L}\p{M}' -]/gu, '').trim().slice(0, 40)
+    if (newName && newName !== profile.name) {
+      await supabase.from('profiles').update({ name: newName }).eq('id', userId)
+    }
 
     // ---- Safety net: crisis replies always carry the helpline ----
     let reply = (result.reply ?? '').trim() || "I'm here. Tell me more?"
@@ -251,7 +258,7 @@ Deno.serve(async (req) => {
 // ================= Logging =================
 
 type Log = { kind: string; date: string; value?: string; replace_previous?: boolean }
-type HeraResult = { reply: string; logs?: Log[]; safety_level?: string }
+type HeraResult = { reply: string; logs?: Log[]; safety_level?: string; profile_updates?: { name?: string } }
 
 // deno-lint-ignore no-explicit-any
 async function saveLogs(supabase: any, userId: string, profile: any, logs: Log[], today: string) {
@@ -300,7 +307,11 @@ const RESPONSE_SCHEMA = {
         required: ['kind', 'date']
       }
     },
-    safety_level: { type: 'STRING', format: 'enum', enum: ['none', 'low_mood', 'distress', 'danger'] }
+    safety_level: { type: 'STRING', format: 'enum', enum: ['none', 'low_mood', 'distress', 'danger'] },
+    profile_updates: {
+      type: 'OBJECT',
+      properties: { name: { type: 'STRING', description: 'Only if she asks to be called something new' } }
+    }
   },
   required: ['reply', 'logs', 'safety_level']
 }
@@ -411,6 +422,9 @@ Log only things she states about HERSELF as facts. Never log from questions, hyp
 - sex_drive: low, normal or high.
 - note: anything else health-related she wants remembered.
 If there is nothing to log, return an empty list.
+
+## Her name
+If she tells you what to call her ("call me Pran", "my name is Pran"), set profile_updates.name to just the name (for example "Pran"), and use it from now on. Otherwise leave profile_updates out.
 
 ## Guidance by phase (a 28-day cycle; adjust to hers)
 - Menstrual (days 1-5): low energy, cramps. Iron + vitamin C (palak, methi, rajma, chana, dates, jaggery with lemon or amla; eggs, fish or chicken if she eats them). Warm meals like khichdi and dal. Ginger or chamomile tea, a hot water bag. Water about 2.5-3 L, warm fluids. Rest, walks, gentle yoga.
