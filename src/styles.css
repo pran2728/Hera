@@ -191,3 +191,20 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .del { background: none; border: 0; color: var(--muted); font-size: 1.3rem; line-height: 1; padding: 4px 8px; cursor: pointer; border-radius: 8px; }
 .del:hover { color: var(--error); }
 .signout { align-self: center; margin: 8px 0 24px; }
+
+/* My profile */
+.profile .field { display: flex; flex-direction: column; gap: 6px; font-weight: 600; font-size: .9rem; }
+.profile .field small { font-weight: 400; color: var(--muted); font-size: .78rem; line-height: 1.35; }
+.profile select, .profile textarea {
+  padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line);
+  background: var(--cream); color: var(--ink); font: inherit; font-size: 1rem; font-weight: 400;
+}
+.profile textarea { resize: vertical; }
+.profile select:focus, .profile textarea:focus { outline: 2px solid var(--plum); outline-offset: 1px; }
+.profile .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.chip-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip-row .chip { font-size: .88rem; padding: 7px 12px; }
+.save-bar { position: sticky; bottom: 0; padding: 10px 0 calc(10px + env(safe-area-inset-bottom)); background: var(--cream); display: flex; }
+.muted.small { font-size: .85rem; margin: 0; }
+.link.left { align-self: flex-start; padding-left: 0; }
+.link.danger { color: var(--error); }

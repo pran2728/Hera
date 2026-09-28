@@ -42,7 +42,8 @@ Deno.test('asks for onboarding first', async () => {
 
 Deno.test('full flow', async (t) => {
   db.profiles.push({ id: 'u1', name: 'Pranathi', life_stage: 'cycles', cycle_length: 28, cycle_length_known: true,
-    period_length: 5, diet: 'vegetarian', tone: 'bestie', conditions: [], onboarded_at: 'x', last_period_start: '2026-08-31' })
+    period_length: 5, diet: 'vegetarian', tone: 'bestie', conditions: [], onboarded_at: 'x', last_period_start: '2026-08-31',
+    age: 27, favourite_foods: 'dosa, dark chocolate', activity_level: 'light', goals: ['Sleep better'], about_me: 'I work night shifts' })
 
   await t.step('logs a period start and replies', async () => {
     nextAI = { reply: 'Oh hey babe! Got it, period started today, Mon 28 Sep.', logs: [{ kind: 'period_start', date: '2026-09-28' }], safety_level: 'none' }
@@ -55,6 +56,8 @@ Deno.test('full flow', async (t) => {
     // prompt carries her context
     const sys = lastAIBody.systemInstruction.parts[0].text
     assert(sys.includes('Vegetarian')); assert(sys.includes('Mon 28 Sep')); assert(sys.includes('babe'))
+    assert(sys.includes('Age: 27')); assert(sys.includes('dosa, dark chocolate')); assert(sys.includes('lightly active'))
+    assert(sys.includes('Sleep better')); assert(sys.includes('night shifts'))
     assertEquals(lastAIBody.contents.at(-1).role, 'user')
   })
 

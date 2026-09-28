@@ -46,7 +46,8 @@ function SignedIn({ session }) {
   if (offline) return <CantConnect details={offline} onRetry={() => setAttempt(a => a + 1)} />
   if (profile === undefined) return <Splash />
   if (!profile?.onboarded_at) return <Onboarding session={session} onDone={setProfile} />
-  return <Chat session={session} profile={profile} />
+  return <Chat session={session} profile={profile} onProfileChange={setProfile}
+               onDeleted={() => setProfile(null)} />
 }
 
 function CantConnect({ details, onRetry }) {

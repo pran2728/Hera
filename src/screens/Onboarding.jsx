@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase, withRetry, isNetworkError, diagnose } from '../lib/supabase'
 import { extractName } from '../lib/name'
+import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES } from '../lib/options'
 import { localToday } from '../lib/dates'
 import { prettyDate } from '../lib/cycle'
 import { Logo } from '../App.jsx'
@@ -23,13 +24,7 @@ const STEPS = [
     key: 'life_stage',
     ask: () => 'Which of these fits you best right now?',
     input: {
-      type: 'chips', options: [
-        ['cycles', 'I get regular periods'],
-        ['ttc', "I'm trying to conceive"],
-        ['pregnant', "I'm pregnant"],
-        ['perimenopause', 'Perimenopause (my periods are changing)'],
-        ['postmenopause', 'Postmenopause (no period for 12+ months)']
-      ]
+      type: 'chips', options: LIFE_STAGES
     }
   },
   {
@@ -55,31 +50,19 @@ const STEPS = [
     skip: a => NO_PERIOD_STAGES.includes(a.life_stage),
     ask: () => 'Are you using any contraception? This changes how I read your cycle.',
     input: {
-      type: 'chips', options: [
-        ['none', 'None'],
-        ['condoms', 'Condoms'],
-        ['combined', 'Combined pill, patch or ring'],
-        ['progestin_pill', 'Mini-pill'],
-        ['hormonal_iud', 'Hormonal IUD'],
-        ['implant', 'Implant or injection'],
-        ['copper_iud', 'Copper IUD'],
-        ['unsaid', 'Prefer not to say']
-      ]
+      type: 'chips', options: CONTRACEPTION
     }
   },
   {
     key: 'conditions',
     ask: () => 'Do any of these apply to you? Pick all that fit.',
-    input: { type: 'multi', options: [['PCOS/PCOD', 'PCOS / PCOD'], ['Endometriosis', 'Endometriosis'], ['Thyroid', 'Thyroid'], ['none', 'None of these']] }
+    input: { type: 'multi', options: [...CONDITIONS, ['none', 'None of these']] }
   },
   {
     key: 'diet',
     ask: () => "What do you eat? I'll suggest foods that fit.",
     input: {
-      type: 'chips', options: [
-        ['vegetarian', 'Vegetarian'], ['vegan', 'Vegan'], ['jain', 'Jain'],
-        ['eggetarian', 'Eggetarian'], ['nonveg', 'Non-vegetarian']
-      ]
+      type: 'chips', options: DIETS
     }
   },
   {
@@ -91,11 +74,7 @@ const STEPS = [
     key: 'tone',
     ask: () => 'Last one about me: how should I talk to you?',
     input: {
-      type: 'chips', options: [
-        ['bestie', 'Like a bestie 💜 (babe, darling…)'],
-        ['gentle', 'Gentle and calm'],
-        ['facts', 'Just the facts']
-      ]
+      type: 'chips', options: TONES
     }
   },
   {

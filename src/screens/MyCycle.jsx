@@ -122,7 +122,6 @@ export default function MyCycle({ userId, onBack }) {
             </section>
           </>
         )}
-        <button className="link signout" onClick={() => supabase.auth.signOut()}>Sign out</button>
       </main>
     </div>
   )

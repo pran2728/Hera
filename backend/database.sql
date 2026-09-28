@@ -20,6 +20,14 @@ create table if not exists public.profiles (
   created_at        timestamptz default now()
 );
 
+-- 1b. More about her, editable on the My Profile screen (added later; safe to re-run).
+alter table public.profiles add column if not exists age int check (age between 18 and 120);
+alter table public.profiles add column if not exists favourite_foods text;
+alter table public.profiles add column if not exists activity_level text
+  check (activity_level in ('sedentary','light','active','very_active'));
+alter table public.profiles add column if not exists goals text[] default '{}';
+alter table public.profiles add column if not exists about_me text;
+
 -- 2. The chat history.
 create table if not exists public.messages (
   id          bigint generated always as identity primary key,
