@@ -253,3 +253,12 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .safety-btn.urgent { background: #B3261E; border-color: #B3261E; color: #fff; }
 .toggle { flex-direction: row !important; align-items: center; }
 .toggle input { flex: none; padding: 0; margin: 0; }
+
+/* Never let a form row push the page sideways on narrow phones. */
+.two > *, .field { min-width: 0; }
+.profile input, .profile select, .profile textarea { width: 100%; min-width: 0; box-sizing: border-box; }
+.profile input[type=time] { -webkit-appearance: none; appearance: none; text-align: left; }
+.profile input[type=checkbox] { width: 20px; }
+.cycle-page { overflow-x: hidden; }
+.two { align-items: end; }
+.stack { display: flex; flex-direction: column; gap: 12px; }

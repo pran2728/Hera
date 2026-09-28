@@ -193,7 +193,7 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
         <section className="card">
           <h2>Your person</h2>
           <p className="muted small">Someone you trust. If you ever tell Hera you're not okay, she'll show a button to message them right away.</p>
-          <div className="two">
+          <div className="stack">
             <Field label="Name">
               <input value={f.trusted_name} onChange={e => set('trusted_name', e.target.value)} placeholder="e.g. Rahul" maxLength={40} />
             </Field>
