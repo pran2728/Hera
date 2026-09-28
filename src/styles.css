@@ -91,3 +91,50 @@ input:focus { outline: 2px solid var(--plum); outline-offset: 1px; }
   border-top: 1px solid var(--line); background: var(--cream);
 }
 .composer input { flex: 1; min-width: 0; }
+
+/* Onboarding answers */
+.progress { color: var(--muted); font-size: .85rem; font-weight: 600; }
+.bubble { white-space: pre-line; }
+.answers {
+  display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom)); border-top: 1px solid var(--line);
+}
+.chip {
+  border: 1.5px solid var(--plum); background: transparent; color: var(--plum);
+  border-radius: 999px; padding: 9px 14px; font-weight: 700; cursor: pointer; text-align: left;
+}
+.chip.on { background: var(--plum); color: #fff; }
+@media (prefers-color-scheme: dark) { .chip.on { color: #1C1219; } }
+.chip.small { align-self: flex-start; padding: 6px 12px; font-size: .9rem; }
+.composer.column { flex-direction: column; }
+.composer .row { display: flex; gap: 8px; }
+.composer .row input { flex: 1; min-width: 0; }
+.primary.wide { flex: 1; }
+
+/* Chat */
+.phase {
+  font-size: .78rem; font-weight: 700; padding: 5px 10px; border-radius: 999px;
+  background: var(--hera-bubble); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 52vw;
+}
+.topbar { gap: 8px; }
+.phase.menstrual { background: #F4C7CF; color: #5B1A2B; }
+.phase.follicular { background: #CDE8D6; color: #1D4A2E; }
+.phase.ovulatory { background: #FCE3B0; color: #5A3A05; }
+.phase.luteal { background: #DCD2F1; color: #33205E; }
+.phase.late { background: #F6D5C4; color: #5A2A12; }
+.bubble.failed { border: 1px dashed var(--error); }
+.logged { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.tag {
+  font-size: .78rem; font-weight: 700; padding: 3px 8px; border-radius: 8px;
+  background: var(--card); border: 1px solid var(--line); color: var(--ink);
+}
+.typing { display: flex; gap: 5px; align-items: center; padding: 14px 16px; }
+.typing span {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--muted);
+  animation: blink 1.2s infinite ease-in-out;
+}
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; } 40% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .typing span { animation: none; opacity: .6; } }
