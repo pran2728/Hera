@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS } from '../lib/options'
+import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 
@@ -19,8 +20,21 @@ function fromProfile(p) {
     allergies: p.allergies ?? '',
     activity_level: p.activity_level ?? '',
     goals: p.goals ?? [],
-    tone: p.tone ?? 'bestie'
+    tone: p.tone ?? 'bestie',
+    nudge_time: p.nudge_time ?? '09:00',
+    checkin_day: p.checkin_day ?? 0,
+    daily_tips: p.daily_tips ?? false,
+    quiet_start: p.quiet_start ?? '22:00',
+    quiet_end: p.quiet_end ?? '08:00',
+    trusted_name: p.trusted_name ?? '',
+    trusted_phone: p.trusted_phone ?? ''
   }
+}
+
+// Digits only, with India's 91 added to a 10-digit number (for WhatsApp links).
+export function normalisePhone(raw) {
+  const d = String(raw || '').replace(/\D/g, '').replace(/^0+/, '')
+  return d.length === 10 ? `91${d}` : d
 }
 
 export default function Profile({ session, profile, onSaved, onDeleted, onBack }) {
@@ -36,7 +50,8 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
     !f.name.trim() && 'Add a name for Hera to call you.',
     age !== null && (age < 18 || age > 120) && 'Age must be between 18 and 120.',
     cycleLen !== null && (cycleLen < 15 || cycleLen > 90) && 'Cycle length must be between 15 and 90 days.',
-    (Number(f.period_length) < 1 || Number(f.period_length) > 15) && 'Period length must be between 1 and 15 days.'
+    (Number(f.period_length) < 1 || Number(f.period_length) > 15) && 'Period length must be between 1 and 15 days.',
+    f.trusted_phone.trim() && !/^\d{10,15}$/.test(normalisePhone(f.trusted_phone)) && 'That phone number looks incomplete.'
   ].filter(Boolean)
 
   async function save(e) {
@@ -58,7 +73,14 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
       allergies: f.allergies.trim() || null,
       activity_level: f.activity_level || null,
       goals: f.goals,
-      tone: f.tone
+      tone: f.tone,
+      nudge_time: f.nudge_time || '09:00',
+      checkin_day: f.checkin_day,
+      daily_tips: f.daily_tips,
+      quiet_start: f.quiet_start || '22:00',
+      quiet_end: f.quiet_end || '08:00',
+      trusted_name: f.trusted_name.trim() || null,
+      trusted_phone: f.trusted_phone.trim() ? normalisePhone(f.trusted_phone) : null
     }
     const { data, error } = await withRetry(() =>
       supabase.from('profiles').update(update).eq('id', session.user.id).select().single())
@@ -159,6 +181,26 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
           <Field label="What do you want help with?" group>
             <Chips options={GOALS.map(g => [g, g])} picked={f.goals} onToggle={v => toggle('goals', v)} />
           </Field>
+        </section>
+
+        <section className="card">
+          <h2>Reminders</h2>
+          <NotificationsSwitch userId={session.user.id} />
+          <ReminderSettings f={f} set={set} />
+          <PauseButton userId={session.user.id} profile={profile} onSaved={onSaved} />
+        </section>
+
+        <section className="card">
+          <h2>Your person</h2>
+          <p className="muted small">Someone you trust. If you ever tell Hera you're not okay, she'll show a button to message them right away.</p>
+          <div className="two">
+            <Field label="Name">
+              <input value={f.trusted_name} onChange={e => set('trusted_name', e.target.value)} placeholder="e.g. Rahul" maxLength={40} />
+            </Field>
+            <Field label="Phone (WhatsApp)">
+              <input type="tel" inputMode="tel" value={f.trusted_phone} onChange={e => set('trusted_phone', e.target.value)} placeholder="98xxxxxxxx" maxLength={16} />
+            </Field>
+          </div>
         </section>
 
         <section className="card">

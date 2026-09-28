@@ -39,6 +39,11 @@ function SignedIn({ session }) {
         return
       }
       setProfile(data)
+      // Keep her timezone current so reminders arrive at her local time.
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      if (data && tz && data.timezone !== tz) {
+        supabase.from('profiles').update({ timezone: tz }).eq('id', userId).then(() => {})
+      }
     })
   }, [userId, attempt])
 

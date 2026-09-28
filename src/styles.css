@@ -226,3 +226,30 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .facts dt { white-space: nowrap; }
 .facts dd small { display: block; font-size: .78rem; font-weight: 600; color: var(--muted); }
 .retry { display: block; margin-top: 10px; }
+
+/* Reminders */
+.notif { display: flex; flex-direction: column; gap: 8px; }
+.notif-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-weight: 600; }
+.notif-row .primary { padding: 8px 16px; }
+.toggle { display: flex; align-items: center; gap: 10px; font-weight: 600; font-size: .9rem; cursor: pointer; }
+.toggle input { width: 20px; height: 20px; accent-color: var(--plum); }
+.profile input[type=time] { min-height: 46px; }
+
+/* Reminder banner */
+.banner {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px;
+  margin: 10px 16px 0; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--line);
+  font-size: .9rem; line-height: 1.4;
+}
+.banner-actions { display: flex; gap: 6px; margin-left: auto; }
+.banner .primary { padding: 8px 14px; }
+
+/* Crisis actions */
+.safety { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.safety-btn {
+  display: block; text-align: center; text-decoration: none; font-weight: 700; padding: 11px 14px; border-radius: 12px;
+  background: var(--card); color: var(--ink); border: 1.5px solid var(--plum);
+}
+.safety-btn.urgent { background: #B3261E; border-color: #B3261E; color: #fff; }
+.toggle { flex-direction: row !important; align-items: center; }
+.toggle input { flex: none; padding: 0; margin: 0; }

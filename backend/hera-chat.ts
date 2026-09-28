@@ -5,7 +5,7 @@
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 
-// ---- Cycle engine (copied from src/lib/cycle.js) ----
+// ---- copied from src/lib/cycle.js ----
 
 const DAY_MS = 86400000
 

@@ -6,7 +6,8 @@ Named after Hera, queen of the gods in Greek mythology and protector of women.
 
 ## Status
 
-Milestone 1, stages 9a–9c: installable web app, email login, onboarding chat, and chat with Hera that logs periods, pain and moods from plain messages.
+Milestone 1 done: installable web app, email login, onboarding chat, chat logging, cycle engine, My cycle and My profile.
+Milestone 2: Hera messages first (push notifications, period reminders, weekly check-ins, daily tips, quiet hours, pause) and crisis buttons for Tele-MANAS, 112 and a trusted contact.
 
 ## Stack (all free tiers)
 
@@ -32,6 +33,8 @@ npm run dev
 ## Backend (pasted into Supabase)
 
 - `backend/database.sql`: tables and row-level security. Run in Supabase → SQL Editor.
+- `backend/schedule.sql`: runs the reminder check every 15 minutes (pg_cron + pg_net). Run after database.sql.
+- `backend/hera-nudge.ts`: the reminder function (Verify JWT off). Creates its own notification keys on first use.
 - `backend/hera-chat.ts`: the chat function. Paste into Supabase → Edge Functions → `hera-chat`. It is generated: edit `backend/hera-chat.template.ts` and run `npm run build:function`.
 
 ## Tests

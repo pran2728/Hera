@@ -6,6 +6,7 @@ import { prettyDate } from '../lib/cycle'
 import { Logo } from '../App.jsx'
 import MyCycle from './MyCycle.jsx'
 import Profile from './Profile.jsx'
+import { pushSupport, enablePush, explainPushError } from '../lib/push'
 
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
@@ -56,12 +57,22 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
   const bottom = useRef(null)
   const input = useRef(null)
 
+  // Load the chat, and reload it when she comes back to the app (Hera may have messaged her).
   useEffect(() => {
-    supabase.from('messages').select('id, role, content, created_at')
-      .order('created_at', { ascending: false }).limit(60)
-      .then(({ data }) => setMessages((data ?? []).reverse()))
-    supabase.functions.invoke('hera-chat', { body: { action: 'status', today: localToday() } })
-      .then(({ data }) => data?.cycle && setCycle(data.cycle))
+    const load = () => {
+      supabase.from('messages').select('id, role, content, created_at')
+        .order('created_at', { ascending: false }).limit(60)
+        .then(({ data }) => data && setMessages(old => [
+          ...data.reverse(),
+          ...(old ?? []).filter(m => m.failed) // keep unsent failures visible
+        ]))
+      supabase.functions.invoke('hera-chat', { body: { action: 'status', today: localToday() } })
+        .then(({ data }) => data?.cycle && setCycle(data.cycle))
+    }
+    load()
+    const onVisible = () => document.visibilityState === 'visible' && load()
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
@@ -94,7 +105,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
     const failed = !!error || !!data?.error
     setMessages(m => [...m, {
       id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,
-      failed, detail: data?.detail, retry: failed ? message : undefined
+      failed, detail: data?.detail, retry: failed ? message : undefined, safety: data?.safety_level
     }])
     if (data?.cycle) setCycle(data.cycle)
     input.current?.focus()
@@ -137,6 +148,8 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
         </div>
       </header>
 
+      <ReminderBanner userId={session.user.id} />
+
       <main className="chat" aria-live="polite">
         {messages === null && <div className="bubble hera typing"><span /><span /><span /></div>}
         {messages?.length === 0 && <div className="bubble hera">{greeting(profile)}</div>}
@@ -147,6 +160,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
             {m.failed && m.retry && (
               <button className="chip small retry" disabled={thinking} onClick={() => send(null, m.retry)}>Try again</button>
             )}
+            {(m.safety === 'distress' || m.safety === 'danger') && <SafetyActions profile={profile} danger={m.safety === 'danger'} />}
             {m.logged?.length > 0 && (
               <div className="logged">
                 {m.logged.map((l, i) => (
@@ -174,6 +188,57 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
         />
         <button className="primary" disabled={!text.trim() || thinking}>Send</button>
       </form>
+    </div>
+  )
+}
+
+// Shown under a reply when she says she's not okay: help is one tap away.
+function SafetyActions({ profile, danger }) {
+  const msg = encodeURIComponent("Hey, I'm not doing okay right now. Can you call me or come over?")
+  return (
+    <div className="safety">
+      <a className="safety-btn" href="tel:14416">Call Tele-MANAS 14416 (free, 24/7)</a>
+      {profile.trusted_phone && (
+        <a className="safety-btn" href={`https://wa.me/${profile.trusted_phone}?text=${msg}`} target="_blank" rel="noreferrer">
+          Message {profile.trusted_name || 'your person'} now
+        </a>
+      )}
+      {danger && <a className="safety-btn urgent" href="tel:112">Call 112 (emergency)</a>}
+    </div>
+  )
+}
+
+// A gentle nudge to turn on reminders, until she does or says no.
+function ReminderBanner({ userId }) {
+  const key = 'hera-reminder-banner-dismissed'
+  const [support, setSupport] = useState(() => { try { return pushSupport() } catch { return 'unsupported' } })
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem(key) === '1' } catch { return false } })
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const hide = () => { try { localStorage.setItem(key, '1') } catch { /* private mode */ } setHidden(true) }
+
+  if (hidden || !['default', 'ios-install'].includes(support)) return note ? <div className="banner"><span>{note}</span></div> : null
+
+  if (support === 'ios-install') {
+    return (
+      <div className="banner">
+        <span>Want Hera's reminders? Add Hera to your Home Screen (Share → Add to Home Screen) and open her from there.</span>
+        <button className="link" onClick={hide}>OK</button>
+      </div>
+    )
+  }
+  return (
+    <div className="banner">
+      <span>Let Hera remind you when your period's due and check in on you?</span>
+      <div className="banner-actions">
+        <button className="link" onClick={hide}>Not now</button>
+        <button className="primary" disabled={busy} onClick={async () => {
+          setBusy(true)
+          try { await enablePush(userId); setNote('Reminders are on 💜 Change them anytime in My profile.') }
+          catch (e) { setNote(explainPushError(e)) }
+          setSupport(pushSupport()); setBusy(false); hide()
+        }}>Turn on</button>
+      </div>
     </div>
   )
 }
