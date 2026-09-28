@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { prettyDate } from '../lib/cycle'
 import { Logo } from '../App.jsx'
+import MyCycle from './MyCycle.jsx'
 
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
@@ -49,6 +50,7 @@ export default function Chat({ session, profile }) {
   const [cycle, setCycle] = useState(null)
   const [text, setText] = useState('')
   const [thinking, setThinking] = useState(false)
+  const [showCycle, setShowCycle] = useState(false)
   const bottom = useRef(null)
   const input = useRef(null)
 
@@ -85,12 +87,29 @@ export default function Chat({ session, profile }) {
 
   const chip = cycleChip(cycle)
 
+  if (showCycle) {
+    return <MyCycle userId={session.user.id} onBack={() => {
+      setShowCycle(false)
+      supabase.functions.invoke('hera-chat', { body: { action: 'status', today: localToday() } })
+        .then(({ data }) => data?.cycle && setCycle(data.cycle))
+    }} />
+  }
+
   return (
     <div className="app">
       <header className="topbar">
         <div className="topbar-brand"><Logo size={32} /><span>Hera</span></div>
-        {chip && <span className={`phase ${cycle.phase || cycle.mode}`}>{chip}</span>}
-        <button className="link" onClick={() => supabase.auth.signOut()}>Sign out</button>
+        {chip
+          ? <button className={`phase ${cycle.phase || cycle.mode}`} onClick={() => setShowCycle(true)}
+                    aria-label={`${chip}. Open my cycle`}>{chip}</button>
+          : <span />}
+        <div className="topbar-actions">
+          <button className="icon-btn" onClick={() => setShowCycle(true)} aria-label="My cycle" title="My cycle">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="4.5" width="18" height="16.5" rx="3" /><path d="M16 2.5v4M8 2.5v4M3 10h18" /><circle cx="12" cy="15.5" r="1.6" fill="currentColor" stroke="none" />
+            </svg>
+          </button>
+        </div>
       </header>
 
       <main className="chat" aria-live="polite">

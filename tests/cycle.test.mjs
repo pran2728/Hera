@@ -46,3 +46,15 @@ assert.equal(computeCycle({ ...base, cycle_length_known: false }, ['2026-09-01']
 assert.equal(prettyDate('2026-09-28'), 'Mon 28 Sep')
 console.log(describeCycle(computeCycle(base, ['2026-09-28'], '2026-09-28')))
 console.log('all cycle tests passed')
+
+// Calendar helpers
+const { periodDays, predictedDays, monthGrid } = await import('../src/lib/calendar.js')
+let days = periodDays(['2026-09-25'], ['2026-09-28'], 5, '2026-10-02')
+assert.deepEqual([...days], ['2026-09-25', '2026-09-26', '2026-09-27', '2026-09-28'])
+days = periodDays(['2026-09-28'], [], 5, '2026-09-29') // ongoing: only up to today
+assert.deepEqual([...days], ['2026-09-28', '2026-09-29'])
+const pred = predictedDays(computeCycle(base, ['2026-09-28'], '2026-09-28'))
+assert.equal(pred.period.has('2026-10-26'), true); assert.equal(pred.ovulation, '2026-10-11')
+const sep = monthGrid(2026, 8) // Sep 2026 starts on a Tuesday
+assert.equal(sep[0][0], null); assert.equal(sep[0][1], '2026-09-01'); assert.equal(sep.flat().filter(Boolean).length, 30)
+console.log('all calendar tests passed')
