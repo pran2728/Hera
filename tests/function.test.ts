@@ -6,10 +6,12 @@ function assertEquals(a: unknown, b: unknown) {
 
 Deno.env.set('SUPABASE_URL', 'http://x'); Deno.env.set('GEMINI_API_KEY', 'k')
 const realFetch = globalThis.fetch
-let nextAI: unknown = null; let lastAIBody: any = null; let aiStatus = 200
+let nextAI: unknown = null; let lastAIBody: any = null; let aiStatus = 200; let busyModels: string[] = []; const modelsTried: string[] = []
 globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
   if (String(url).includes('googleapis')) {
     lastAIBody = JSON.parse(String(init?.body))
+    const model = String(url).split('/models/')[1].split(':')[0]; modelsTried.push(model)
+    if (busyModels.includes(model)) return new Response('{"error":{"code":503,"message":"high demand"}}', { status: 503 })
     if (aiStatus !== 200) return new Response('rate', { status: aiStatus })
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(nextAI) }] } }] }))
   }
@@ -90,6 +92,15 @@ Deno.test('full flow', async (t) => {
     nextAI = { reply: 'Got it, Pran!', logs: [], safety_level: 'none', profile_updates: { name: 'Pran 💜' } }
     await call({ message: 'my name is Pran', today: '2026-09-28' })
     assertEquals(db.profiles[0].name, 'Pran')
+  })
+
+  await t.step('busy model falls back to the next one', async () => {
+    busyModels = ['gemini-flash-latest', 'gemini-2.5-flash']; modelsTried.length = 0
+    nextAI = { reply: 'Hey babe, I got you', logs: [], safety_level: 'none' }
+    const r = await call({ message: 'hi', today: '2026-09-28' })
+    assertEquals(r.json.reply, 'Hey babe, I got you')
+    assertEquals(modelsTried, ['gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest'])
+    busyModels = []
   })
 
   await t.step('history alternates and starts with user', async () => {

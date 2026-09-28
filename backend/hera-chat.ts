@@ -223,7 +223,7 @@ Deno.serve(async (req) => {
       result = await askGemini(system, past, message)
     } catch (e) {
       const msg = String((e as Error).message)
-      const reply = msg.includes('429')
+      const reply = /\b(429|503|500)\b/.test(msg)
         ? "Aw, I'm getting a lot of messages right now 🙈 Give me a minute and try again?"
         : "Sorry, I couldn't think straight just now. Can you send that again?"
       console.error('Gemini error:', msg)
@@ -330,40 +330,50 @@ async function askGemini(system: string, past: { role: string; content: string }
     else turns.push({ role, parts: [{ text: m.content }] })
   }
 
-  const models = [...new Set([Deno.env.get('GEMINI_MODEL'), 'gemini-flash-latest', 'gemini-2.5-flash'].filter(Boolean))] as string[]
+  // Free models get busy (503) or rate-limited (429): fall through to the next one.
+  const models = [...new Set([
+    Deno.env.get('GEMINI_MODEL'),
+    'gemini-flash-latest', 'gemini-2.5-flash', 'gemini-flash-lite-latest', 'gemini-2.5-flash-lite'
+  ].filter(Boolean))] as string[]
   let lastError = ''
-  const attempts = models.flatMap(model => [{ model, schema: true }, { model, schema: false }])
-  for (const { model, schema } of attempts) {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: system }] },
-        contents: turns,
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 4096,
-          responseMimeType: 'application/json',
-          // If Google ever rejects the schema, retry once with JSON mode only.
-          ...(schema ? { responseSchema: RESPONSE_SCHEMA } : {})
-        },
-        safetySettings: [
-          'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
-          'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT'
-        ].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' }))
+  for (const model of models) {
+    for (const schema of [true, false]) {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: turns,
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 4096,
+            responseMimeType: 'application/json',
+            // If Google ever rejects the schema, retry once with JSON mode only.
+            ...(schema ? { responseSchema: RESPONSE_SCHEMA } : {})
+          },
+          safetySettings: [
+            'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
+            'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT'
+          ].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' }))
+        })
       })
-    })
-    if (res.status === 404) { lastError = `404 model ${model}`; continue }
-    if (res.status === 400 && schema) { lastError = `400 ${(await res.text()).slice(0, 200)}`; console.error(lastError); continue }
-    if (!res.ok) throw new Error(`${res.status} ${(await res.text()).slice(0, 300)}`)
-
-    const data = await res.json()
-    const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
-    if (!text) throw new Error(`empty response (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? 'unknown'})`)
-    try {
-      return JSON.parse(text)
-    } catch {
-      return { reply: text, logs: [], safety_level: 'none' }
+      if (res.ok) {
+        const data = await res.json()
+        const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+        if (!text) {
+          lastError = `empty response from ${model} (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? 'unknown'})`
+          break // try the next model
+        }
+        try {
+          return JSON.parse(text)
+        } catch {
+          return { reply: text, logs: [], safety_level: 'none' }
+        }
+      }
+      lastError = `${res.status} ${model}: ${(await res.text()).slice(0, 200)}`
+      console.error('Gemini error:', lastError)
+      if (res.status === 400 && schema) continue // retry this model without the schema
+      break // 404 (model gone), 429 (limit), 5xx (busy): try the next model
     }
   }
   throw new Error(lastError || 'no model available')
