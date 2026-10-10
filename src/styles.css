@@ -238,7 +238,7 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .profile input[type=time] { -webkit-appearance: none; appearance: none; text-align: left; }
 .profile input[type=checkbox] { width: 20px; }
 .cycle-page { overflow-x: hidden; }
-.two { align-items: end; }
+.two { align-items: start; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
 
 /* ---- Partner mode ---- */
@@ -437,3 +437,19 @@ button.log-count { background: none; border: 0; padding: 4px 0; cursor: pointer;
 .log-month { margin: 12px 0 2px; font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--kicker); }
 .bars-note { margin: 2px 0 8px; font-size: .72rem; color: var(--muted); text-align: center; }
 .bars .bar.now { fill: none; stroke: var(--plum); stroke-width: 2; stroke-dasharray: 5 4; }
+
+/* ---- Me page fixes (iPhone) ---- */
+/* Save bar: cover the page's 16px edge so nothing peeks out below or beside it.
+   The tab bar under it already handles the home-indicator space. */
+.save-bar {
+  bottom: -16px; margin: 0 -16px; padding: 10px 16px 26px;
+  box-shadow: 0 -8px 16px -12px rgba(0, 0, 0, .35);
+  z-index: 2;
+}
+/* iPhone draws date boxes wider than their column and centres the date: make them behave like the other boxes. */
+input[type=date] {
+  -webkit-appearance: none; appearance: none; display: block;
+  width: 100%; min-width: 0; max-width: 100%; box-sizing: border-box; text-align: left;
+}
+input[type=date]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+.profile input[type=date] { min-height: 46px; }
