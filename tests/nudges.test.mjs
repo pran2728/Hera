@@ -138,3 +138,13 @@ console.log('all nudge tests passed')
   assert.equal(dueNudge({ ...base, checkin_day: 9, podcast_picks: true }, ['2026-09-20'], [], [], at('2026-10-11')), null)
   console.log('partner calendar + podcasts: ok')
 }
+
+// ---------- Birthday ----------
+{
+  const { dueNudge } = await import('../src/lib/nudges.js')
+  const b = dueNudge({ ...base, birth_date: '2000-10-12', checkin_day: 9 }, ['2026-09-20'], [], [], at('2026-10-12'))
+  assert.equal(b.kind, 'birthday'); assert.match(b.text, /^Happy birthday, Pran! 🎂💜 26 looks good on you\./)
+  assert.equal(dueNudge({ ...base, birth_date: '2000-10-12', checkin_day: 9 }, ['2026-09-20'], [], [{ kind: 'birthday', for_date: '2026-10-12' }], at('2026-10-12')), null)
+  assert.equal(dueNudge({ ...base, birth_date: '2000-10-12', checkin_day: 9 }, ['2026-09-20'], [], [], at('2026-10-12', '07:00')), null) // not during quiet hours
+  console.log('birthday: ok')
+}

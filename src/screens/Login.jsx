@@ -104,7 +104,7 @@ function friendly(msg = '') {
   if (/invalid login/i.test(msg)) return "That email and password don't match. Try again?"
   if (/email not confirmed/i.test(msg)) return 'Please confirm your email first. Check your inbox (and spam).'
   if (/already registered/i.test(msg)) return 'You already have an account. Sign in instead.'
-  if (/rate limit/i.test(msg)) return 'Too many emails sent. Wait a few minutes and try again.'
+  if (/rate limit/i.test(msg)) return "Hera can only send a few sign-up emails an hour while she's in testing. Please try again in about an hour, or let the person who invited you know."
   if (/load failed|failed to fetch|network/i.test(msg))
     return "Hera couldn't reach the server. Check your internet. If it keeps happening, the Supabase URL or key in Vercel is probably wrong."
   return msg || 'Something went wrong. Try again?'

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { addDays } from '../lib/cycle'
+import { ageOn } from '../lib/stages'
 import { localToday } from '../lib/dates'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS } from '../lib/options'
 import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
@@ -14,6 +15,7 @@ const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 function fromProfile(p) {
   return {
     name: p.name ?? '',
+    birth_date: p.birth_date ?? '',
     age: p.age ?? '',
     favourite_foods: p.favourite_foods ?? '',
     about_me: p.about_me ?? '',
@@ -55,11 +57,14 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
   const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setStatus('') }
   const toggle = (k, v) => set(k, f[k].includes(v) ? f[k].filter(x => x !== v) : [...f[k], v])
 
-  const age = f.age === '' ? null : Number(f.age)
+  const today = localToday()
+  // Age comes from the date of birth when she gives one; an age typed in earlier is kept as a fallback.
+  const age = f.birth_date ? ageOn(f.birth_date, today) : (f.age === '' ? null : Number(f.age))
   const cycleLen = f.cycle_length === '' ? null : Number(f.cycle_length)
   const problems = [
     !f.name.trim() && 'Add a name for Hera to call you.',
-    age !== null && (age < 18 || age > 120) && 'Age must be between 18 and 120.',
+    f.birth_date && f.birth_date > today && "Your date of birth can't be in the future.",
+    age !== null && (age < 18 || age > 120) && 'Hera is for adults: your date of birth should make you 18 or older.',
     cycleLen !== null && (cycleLen < 15 || cycleLen > 90) && 'Cycle length must be between 15 and 90 days.',
     (Number(f.period_length) < 1 || Number(f.period_length) > 15) && 'Period length must be between 1 and 15 days.',
     f.life_stage === 'pregnant' && f.due_date && (f.due_date < addDays(localToday(), -21) || f.due_date > addDays(localToday(), 300)) && 'That due date looks off. Check the year?',
@@ -74,6 +79,7 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
     const update = {
       name: f.name.trim(),
       age,
+      birth_date: f.birth_date || null,
       favourite_foods: f.favourite_foods.trim() || null,
       about_me: f.about_me.trim() || null,
       life_stage: f.life_stage,
@@ -159,9 +165,14 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
           <Field label="What Hera calls you">
             <input value={f.name} onChange={e => set('name', e.target.value)} maxLength={40} autoComplete="given-name" />
           </Field>
-          <Field label="Age" hint="Helps with age-specific advice, like fertility after 35 or perimenopause in your 40s.">
-            <input type="number" inputMode="numeric" min={18} max={120} value={f.age}
-                   onChange={e => set('age', e.target.value)} placeholder="e.g. 27" />
+          <Field label="Date of birth (optional)"
+                 hint={f.birth_date && age !== null && age >= 18
+                   ? `You're ${age}. Hera uses this for age-specific advice, and wishes you on your birthday 🎂`
+                   : f.age !== '' && !f.birth_date
+                     ? `Saved age: ${f.age}. Add your birth date so it stays up to date (and so Hera can wish you a happy birthday).`
+                     : 'Helps with age-specific advice, and Hera will wish you a happy birthday 🎂'}>
+            <input type="date" value={f.birth_date} max={addDays(today, -18 * 365)} min="1900-01-01"
+                   onChange={e => set('birth_date', e.target.value)} />
           </Field>
           <Field label="Favourite foods" hint="Hera will suggest these when they suit your phase and diet.">
             <input value={f.favourite_foods} onChange={e => set('favourite_foods', e.target.value)}

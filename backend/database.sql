@@ -229,3 +229,6 @@ revoke all on public.feedback from anon, authenticated;
 grant select on public.feedback to authenticated;
 grant insert (category, hera_reply, note) on public.feedback to authenticated;
 grant select, insert, update, delete on public.feedback to service_role;
+
+-- ================= Date of birth (optional; age is worked out from it) =================
+alter table public.profiles add column if not exists birth_date date check (birth_date <= current_date);

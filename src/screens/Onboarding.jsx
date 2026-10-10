@@ -120,7 +120,12 @@ function loadDraft(id) {
 export default function Onboarding({ session, onDone }) {
   const draft = loadDraft(session.user.id)
   const [answers, setAnswers] = useState(draft?.answers ?? {})
-  const [index, setIndex] = useState(draft?.index ?? 0)
+  const [index, setIndex] = useState(() => {
+    // A draft saved before questions were added may point at a step that doesn't apply: move past it.
+    let i = draft?.index ?? 0
+    while (i < STEPS.length - 1 && STEPS[i].skip?.(draft?.answers ?? {})) i++
+    return i
+  })
   const [transcript, setTranscript] = useState(draft?.transcript ?? [{ role: 'hera', text: STEPS[0].ask({}) }])
   const [blocked, setBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -261,8 +266,16 @@ function AnswerBox({ step, onAnswer }) {
     ? value !== '' && Number(value) >= input.min && Number(value) <= input.max
     : input.type === 'date' ? value && value <= latest && (!input.future || value >= today) : value.trim().length > 0
 
+  // Some phones (iPhone) let you pick any date, so say clearly when one isn't allowed.
+  const dateProblem = input.type === 'date' && value
+    ? (!input.future && value > today ? "That's a future date. Pick today or a day before."
+      : input.future && value < today ? 'Pick a date from today onwards.'
+      : input.future && value > latest ? 'That date is too far ahead. Check the year?' : '')
+    : ''
+
   return (
     <form className="composer column" onSubmit={e => { e.preventDefault(); if (valid) onAnswer(value) }}>
+      {dateProblem && <p className="error" role="alert">{dateProblem}</p>}
       {input.skipLabel && (
         <button type="button" className="chip small" onClick={() => onAnswer(null)}>{input.skipLabel}</button>
       )}

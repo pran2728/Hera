@@ -186,6 +186,22 @@ function describeCycle(c) {
 
 // ---- copied from src/lib/stages.js ----
 
+function ageOn(birthDate, today) {
+  if (!birthDate || !today) return null
+  const [by, bm, bd] = birthDate.split('-').map(Number)
+  const [ty, tm, td] = today.split('-').map(Number)
+  return ty - by - ((tm < bm || (tm === bm && td < bd)) ? 1 : 0)
+}
+function ageOf(profile, today) {
+  return profile?.birth_date ? ageOn(profile.birth_date, today) : (profile?.age ?? null)
+}
+function isBirthday(birthDate, today) {
+  if (!birthDate || !today) return false
+  const md = birthDate.slice(5), tmd = today.slice(5), y = Number(today.slice(0, 4))
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  return md === tmd || (md === '02-29' && !leap && tmd === '02-28')
+}
+
 const SOURCES = {
   pregnancy_weeks: { title: 'Week-by-week guide to pregnancy (NHS)', url: 'https://www.nhs.uk/pregnancy/week-by-week/' },
   pregnancy_food: { title: 'Foods to avoid in pregnancy (NHS)', url: 'https://www.nhs.uk/pregnancy/keeping-well/foods-to-avoid/' },
@@ -262,7 +278,7 @@ function pregnancyGuide(w) {
 function ttcInfo(profile, cycle, today) {
   const since = profile.ttc_since
   const months = since ? Math.max(0, Math.floor(daysBetween(since, today) / 30.4)) : null
-  const limit = (profile.age ?? 0) >= 35 ? 6 : 12
+  const limit = (ageOf(profile, today) ?? 0) >= 35 ? 6 : 12
   const pcos = (profile.conditions ?? []).some(c => /pcos|pcod/i.test(c))
   return {
     since, months, limit,
@@ -485,6 +501,7 @@ function dueNudge(p, starts, ends, sent, now) {
 
   const cycle = computeCycle(p, starts, today)
   const candidates = []
+  if (isBirthday(p.birth_date, today)) candidates.push('birthday')
 
   if (cycle.mode === 'cycle') {
     const toExpected = daysBetween(today, cycle.nextPeriod.expected)
@@ -591,6 +608,12 @@ function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts'
         ? `Your estimated fertile window starts today and runs until ${d}. It's an estimate${cycle.rough ? ', and a rough one for your cycles' : ''}.`
         : `${hi}Your fertile window likely starts today and runs until ${d}${cycle.rough ? ' (a rough estimate for your cycles)' : ''}. No pressure though: sex every 2–3 days works just as well${heart}`
+    }
+    case 'birthday': {
+      const age = ageOn(p.birth_date, today)
+      return tone === 'facts'
+        ? `Happy birthday${name ? `, ${name}` : ''}. Wishing you a healthy, happy year ahead.`
+        : `Happy birthday${name ? `, ${name}` : ''}! 🎂💜 ${age ? `${age} looks good on you. ` : ''}Do one thing today that's just for you. That's an order from your favourite goddess.`
     }
     case 'podcast': {
       const pod = podcastFor(p, cycle, today)

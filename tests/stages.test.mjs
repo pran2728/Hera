@@ -72,3 +72,22 @@ assert.match(describeStage(me, computeCycle(me, ['2026-09-29'], '2026-10-10'), s
 // ---- Sources ----
 for (const keys of Object.values(STAGE_SOURCES)) for (const k of keys) assert.ok(SOURCES[k]?.url.startsWith('https://'), k)
 console.log('all stage tests passed')
+
+// ---- Age and birthdays ----
+{
+  const { ageOn, ageOf, isBirthday } = await import('../src/lib/stages.js')
+  assert.equal(ageOn('2000-10-11', '2026-10-10'), 25)
+  assert.equal(ageOn('2000-10-10', '2026-10-10'), 26)
+  assert.equal(ageOf({ birth_date: '2000-10-10', age: 99 }, '2027-10-10'), 27) // birthday beats a typed age
+  assert.equal(ageOf({ age: 26 }, '2027-10-10'), 26)
+  assert.equal(ageOf({}, '2027-10-10'), null)
+  assert.equal(isBirthday('2000-10-10', '2026-10-10'), true)
+  assert.equal(isBirthday('2000-10-11', '2026-10-10'), false)
+  assert.equal(isBirthday('2000-02-29', '2027-02-28'), true)  // not a leap year
+  assert.equal(isBirthday('2000-02-29', '2028-02-28'), false) // leap year: wait for the 29th
+  assert.equal(isBirthday('2000-02-29', '2028-02-29'), true)
+  // TTC doctor advice uses the age from her birthday
+  const { ttcInfo } = await import('../src/lib/stages.js')
+  assert.equal(ttcInfo({ birth_date: '1990-01-01', ttc_since: '2026-01-01', conditions: [] }, { mode: 'unknown' }, '2026-10-10').limit, 6)
+  console.log('age and birthdays: ok')
+}

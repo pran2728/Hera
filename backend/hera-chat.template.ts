@@ -352,7 +352,7 @@ ${TONES[p.tone] ?? TONES.bestie}
 
 ## Who you're talking to
 - Name: ${p.name || 'not given'}
-- Age: ${p.age ?? 'not given'}
+- Age: ${ageOf(p, today) ?? 'not given'}${isBirthday(p.birth_date, today) ? ' (TODAY IS HER BIRTHDAY: wish her warmly once in this conversation)' : ''}
 - Today: ${prettyDate(today)} (${today})
 - Life stage: ${STAGE_NAMES[p.life_stage] ?? p.life_stage}
 - Diet: ${DIETS[p.diet] ?? p.diet ?? 'not given'}

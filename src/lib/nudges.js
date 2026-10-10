@@ -1,7 +1,7 @@
 // Hera's proactive messages: which one is due right now, and what it says.
 // Pure logic, used by the hera-nudge function (copied in by scripts/build-function.mjs) and by tests.
 import { computeCycle, daysBetween, addDays } from './cycle.js'
-import { pregnancyGuide, boneFoods } from './stages.js'
+import { pregnancyGuide, boneFoods, isBirthday, ageOn } from './stages.js'
 import { podcastFor, isPodcastDay } from './podcasts.js'
 
 export const DAILY_CAP = 3
@@ -54,6 +54,7 @@ export function dueNudge(p, starts, ends, sent, now) {
 
   const cycle = computeCycle(p, starts, today)
   const candidates = []
+  if (isBirthday(p.birth_date, today)) candidates.push('birthday')
 
   if (cycle.mode === 'cycle') {
     const toExpected = daysBetween(today, cycle.nextPeriod.expected)
@@ -162,6 +163,12 @@ export function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts'
         ? `Your estimated fertile window starts today and runs until ${d}. It's an estimate${cycle.rough ? ', and a rough one for your cycles' : ''}.`
         : `${hi}Your fertile window likely starts today and runs until ${d}${cycle.rough ? ' (a rough estimate for your cycles)' : ''}. No pressure though: sex every 2–3 days works just as well${heart}`
+    }
+    case 'birthday': {
+      const age = ageOn(p.birth_date, today)
+      return tone === 'facts'
+        ? `Happy birthday${name ? `, ${name}` : ''}. Wishing you a healthy, happy year ahead.`
+        : `Happy birthday${name ? `, ${name}` : ''}! 🎂💜 ${age ? `${age} looks good on you. ` : ''}Do one thing today that's just for you. That's an order from your favourite goddess.`
     }
     case 'podcast': {
       const pod = podcastFor(p, cycle, today)

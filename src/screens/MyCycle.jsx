@@ -117,7 +117,7 @@ export default function MyCycle({ userId, onBack }) {
 
             {['perimenopause', 'postmenopause'].includes(profile.life_stage) && <BonesCard diet={profile.diet} />}
             <PatternsCard logs={logs} today={today} showCycle={view.cycle.mode === 'cycle' || view.cycle.mode === 'unknown'} />
-            {view.cycle.mode === 'cycle' && <SexDriveCard profile={profile} logs={logs} />}
+            {view.cycle.mode === 'cycle' && <SexDriveCard profile={profile} logs={logs} onLogged={load} />}
             {profile.podcast_picks !== false && <PodcastCard profile={profile} cycle={view.cycle} today={today} />}
             <ReadMore stage={profile.life_stage} />
 

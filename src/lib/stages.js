@@ -3,6 +3,25 @@
 // Health content here is general guidance pending review by gynaecologists (Milestone 5).
 import { computeCycle, daysBetween, prettyDate } from './cycle.js'
 
+// ---------- Age and birthdays ----------
+// Age from her date of birth on a given day; falls back to an age she typed in before birthdays existed.
+export function ageOn(birthDate, today) {
+  if (!birthDate || !today) return null
+  const [by, bm, bd] = birthDate.split('-').map(Number)
+  const [ty, tm, td] = today.split('-').map(Number)
+  return ty - by - ((tm < bm || (tm === bm && td < bd)) ? 1 : 0)
+}
+export function ageOf(profile, today) {
+  return profile?.birth_date ? ageOn(profile.birth_date, today) : (profile?.age ?? null)
+}
+// Is today her birthday? (29 Feb birthdays are celebrated on 28 Feb in other years.)
+export function isBirthday(birthDate, today) {
+  if (!birthDate || !today) return false
+  const md = birthDate.slice(5), tmd = today.slice(5), y = Number(today.slice(0, 4))
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  return md === tmd || (md === '02-29' && !leap && tmd === '02-28')
+}
+
 // ---------- Trusted sources (the only links Hera shares) ----------
 export const SOURCES = {
   pregnancy_weeks: { title: 'Week-by-week guide to pregnancy (NHS)', url: 'https://www.nhs.uk/pregnancy/week-by-week/' },
@@ -86,7 +105,7 @@ export function pregnancyGuide(w) {
 export function ttcInfo(profile, cycle, today) {
   const since = profile.ttc_since
   const months = since ? Math.max(0, Math.floor(daysBetween(since, today) / 30.4)) : null
-  const limit = (profile.age ?? 0) >= 35 ? 6 : 12
+  const limit = (ageOf(profile, today) ?? 0) >= 35 ? 6 : 12
   const pcos = (profile.conditions ?? []).some(c => /pcos|pcod/i.test(c))
   return {
     since, months, limit,

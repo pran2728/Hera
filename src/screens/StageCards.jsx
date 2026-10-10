@@ -1,5 +1,8 @@
 // Cards on the My cycle screen for each life stage. Content comes from src/lib/stages.js.
+import { useState } from 'react'
 import { prettyDate } from '../lib/cycle'
+import { localToday } from '../lib/dates'
+import { quickLog } from '../lib/quicklog'
 import { pregnancyGuide, WARNING_SIGNS, ttcInfo, symptomSummary, boneFoods, sexDrivePattern, SOURCES, STAGE_SOURCES } from '../lib/stages'
 
 export function PregnancyCard({ cycle }) {
@@ -95,17 +98,31 @@ export function BonesCard({ diet }) {
   )
 }
 
-export function SexDriveCard({ profile, logs }) {
+export function SexDriveCard({ profile, logs, onLogged }) {
   const p = sexDrivePattern(profile, logs)
   const n = logs.filter(l => l.kind === 'sex_drive').length
+  const today = localToday()
+  const todays = logs.find(l => l.kind === 'sex_drive' && l.log_date === today)
+  const [note, setNote] = useState('')
+  async function log(value) {
+    setNote('')
+    try { await quickLog(profile.id, profile, 'sex_drive', value, today); setNote(`Logged: ${value} today 💜`); onLogged?.() }
+    catch { setNote("Couldn't save that. Try again?") }
+  }
   return (
     <section className="card">
       <h2>Your sex drive</h2>
       {p
         ? <p className="tip">{p.text} It's normal for desire to move with your hormones.</p>
         : <p className="muted small">
-            {n ? `${n} of 4 check-ins so far. ` : ''}Tell Hera now and then if your sex drive is low, normal or high, and she'll show how it moves with your cycle.
+            {n ? `${n} of 4 check-ins so far. ` : ''}Tap below now and then (or tell Hera in chat), and she'll show how it moves with your cycle.
           </p>}
+      <div className="quick" role="group" aria-label="Your sex drive today">
+        {[['Low', 'low'], ['Normal', 'normal'], ['High', 'high']].map(([label, v]) => (
+          <button key={v} type="button" className={`chip quick-chip ${todays?.value === v ? 'on' : ''}`} onClick={() => log(v)}>{label}</button>
+        ))}
+      </div>
+      {note && <p className="notice" role="status">{note}</p>}
     </section>
   )
 }

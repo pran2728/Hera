@@ -177,6 +177,22 @@ function describeCycle(c) {
 
 // ---- copied from src/lib/stages.js ----
 
+function ageOn(birthDate, today) {
+  if (!birthDate || !today) return null
+  const [by, bm, bd] = birthDate.split('-').map(Number)
+  const [ty, tm, td] = today.split('-').map(Number)
+  return ty - by - ((tm < bm || (tm === bm && td < bd)) ? 1 : 0)
+}
+function ageOf(profile, today) {
+  return profile?.birth_date ? ageOn(profile.birth_date, today) : (profile?.age ?? null)
+}
+function isBirthday(birthDate, today) {
+  if (!birthDate || !today) return false
+  const md = birthDate.slice(5), tmd = today.slice(5), y = Number(today.slice(0, 4))
+  const leap = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0
+  return md === tmd || (md === '02-29' && !leap && tmd === '02-28')
+}
+
 const SOURCES = {
   pregnancy_weeks: { title: 'Week-by-week guide to pregnancy (NHS)', url: 'https://www.nhs.uk/pregnancy/week-by-week/' },
   pregnancy_food: { title: 'Foods to avoid in pregnancy (NHS)', url: 'https://www.nhs.uk/pregnancy/keeping-well/foods-to-avoid/' },
@@ -253,7 +269,7 @@ function pregnancyGuide(w) {
 function ttcInfo(profile, cycle, today) {
   const since = profile.ttc_since
   const months = since ? Math.max(0, Math.floor(daysBetween(since, today) / 30.4)) : null
-  const limit = (profile.age ?? 0) >= 35 ? 6 : 12
+  const limit = (ageOf(profile, today) ?? 0) >= 35 ? 6 : 12
   const pcos = (profile.conditions ?? []).some(c => /pcos|pcod/i.test(c))
   return {
     since, months, limit,
@@ -880,7 +896,7 @@ ${TONES[p.tone] ?? TONES.bestie}
 
 ## Who you're talking to
 - Name: ${p.name || 'not given'}
-- Age: ${p.age ?? 'not given'}
+- Age: ${ageOf(p, today) ?? 'not given'}${isBirthday(p.birth_date, today) ? ' (TODAY IS HER BIRTHDAY: wish her warmly once in this conversation)' : ''}
 - Today: ${prettyDate(today)} (${today})
 - Life stage: ${STAGE_NAMES[p.life_stage] ?? p.life_stage}
 - Diet: ${DIETS[p.diet] ?? p.diet ?? 'not given'}

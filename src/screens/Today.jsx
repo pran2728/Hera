@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { computeCycle, daysBetween, addDays, PHASE_LABELS } from '../lib/cycle'
-import { pregnancyGuide } from '../lib/stages'
+import { pregnancyGuide, isBirthday } from '../lib/stages'
 import { lineFor } from '../lib/quotes'
 import { dailyTip } from '../lib/nudges'
 import { quickItems, quickLog, undoLog, logLabel } from '../lib/quicklog'
@@ -146,7 +146,9 @@ export default function Today({ session, profile, onProfileChange, active, onTal
       <header className="today-head">
         <svg width="30" height="30" viewBox="0 0 512 512" aria-hidden="true"><circle cx="256" cy="256" r="150" className="gold-fill" /><circle cx="310" cy="220" r="132" className="bg-fill" /></svg>
         <span className="small-caps">{longDate(today)}</span>
-        <p className="today-hello">{greetingFor(profile.name)}</p>
+        <p className="today-hello">{isBirthday(profile.birth_date, today)
+          ? `Happy birthday${profile.name ? `, ${profile.name.split(' ')[0]}` : ''} 🎂`
+          : greetingFor(profile.name)}</p>
       </header>
       <StoryRow stories={stories} today={today} onOpen={setStory} version={seenV} />
       {story !== null && (
@@ -166,12 +168,16 @@ export default function Today({ session, profile, onProfileChange, active, onTal
         <div className="quick" role="group" aria-label="Quick log">
           {items.map(it => (
             <button key={it.id} type="button" className={`chip quick-chip ${it.kind === 'period_start' || it.kind === 'period_end' ? 'key' : ''} ${picking?.id === it.id ? 'on' : ''}`} disabled={busy}
-                    onClick={() => it.pick ? setPicking(picking?.id === it.id ? null : it) : log(it)}>{it.label}</button>
+                    onClick={() => {
+                      if (!it.pick) return log(it)
+                      setPicking(picking?.id === it.id ? null : it)
+                      setTimeout(() => document.querySelector('.quick-pick')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50)
+                    }}>{it.label}</button>
           ))}
         </div>
         {picking && (
           <div className="quick-pick" role="group" aria-label={`${picking.label} level`}>
-            <span className="muted small">{picking.label}:</span>
+            <span className="muted small">{picking.id === 'drive' ? 'Your sex drive today:' : 'How bad?'}</span>
             {picking.pick.map(([label, v]) => <button key={v} type="button" className="chip small" onClick={() => log(picking, v)}>{label}</button>)}
           </div>
         )}
