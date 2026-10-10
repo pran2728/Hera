@@ -133,7 +133,7 @@ console.log('all nudge tests passed')
   assert.equal(partnerView({ ...her, life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-10-10', true).next_period, null)
   // Podcast every 3rd day, with a real link; off when she turns it off
   const pod = dueNudge({ ...base, checkin_day: 9, podcast_picks: true }, ['2026-09-20'], [], [], at('2026-10-10')) // 2026-10-10 is day 282 => 282 % 3 = 0
-  assert.equal(pod.kind, 'podcast'); assert.match(pod.text, /^Hey Pran! Podcast pick for the next few days 🎧 .+ https:\/\//)
+  assert.equal(pod.kind, 'podcast'); assert.match(pod.text, /^Hey Pran! Listen pick for the next few days 🎧 ".+" by .+ \(.+\): .+ https:\/\//)
   assert.equal(dueNudge({ ...base, checkin_day: 9, podcast_picks: false }, ['2026-09-20'], [], [], at('2026-10-10')), null)
   assert.equal(dueNudge({ ...base, checkin_day: 9, podcast_picks: true }, ['2026-09-20'], [], [], at('2026-10-11')), null)
   console.log('partner calendar + podcasts: ok')

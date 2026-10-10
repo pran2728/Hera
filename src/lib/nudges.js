@@ -173,8 +173,8 @@ export function nudgeText(kind, p, cycle, today = '2026-01-01') {
     case 'podcast': {
       const pod = podcastFor(p, cycle, today)
       return tone === 'facts'
-        ? `Podcast pick: ${pod.name} (${pod.host}). Why now: ${pod.why} ${pod.url}`
-        : `${hi}Podcast pick for the next few days 🎧 ${pod.name} with ${pod.host}: ${pod.why} ${pod.url}`
+        ? `Listen pick: "${pod.name}" by ${pod.host} (${pod.show}). Why now: ${pod.why} ${pod.url}`
+        : `${hi}Listen pick for the next few days 🎧 "${pod.name}" by ${pod.host} (${pod.show}): ${pod.why} ${pod.url}`
     }
     case 'weekly_checkin': {
       const stage = p.life_stage

@@ -168,23 +168,57 @@ export default function MyCycle({ userId, onBack }) {
             {profile.podcast_picks !== false && <PodcastCard profile={profile} cycle={view.cycle} today={today} />}
             <ReadMore stage={profile.life_stage} />
 
-            <section className="card">
-              <h2>What you've told me</h2>
-              {logs.length === 0 && <p className="muted">Nothing yet. Tell Hera things like "got my period today" or "cramps are a 6".</p>}
-              <ul className="log-list">
-                {logs.map(l => (
-                  <li key={l.id}>
-                    <span className="log-date">{prettyDate(l.log_date)}</span>
-                    <span className="log-text">{LOG_LABELS[l.kind]}{l.value ? `: ${l.value}` : ''}</span>
-                    <button className="del" onClick={() => remove(l)} aria-label={`Delete ${LOG_LABELS[l.kind]} on ${prettyDate(l.log_date)}`}>×</button>
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <LogHistory logs={logs} onRemove={remove} />
           </>
         )}
       </main>
     </div>
+  )
+}
+
+// Everything she's logged, newest first. Folded to the latest few so the page stays short;
+// expanded, it's grouped by month.
+function LogHistory({ logs, onRemove }) {
+  const [open, setOpen] = useState(false)
+  const PREVIEW = 3
+  const shown = open ? logs : logs.slice(0, PREVIEW)
+  const groups = []
+  for (const l of shown) {
+    const key = `${MONTHS[Number(l.log_date.slice(5, 7)) - 1]} ${l.log_date.slice(0, 4)}`
+    if (groups.at(-1)?.key !== key) groups.push({ key, items: [] })
+    groups.at(-1).items.push(l)
+  }
+  return (
+    <section className="card">
+      <div className="log-head">
+        <h2>What you've told me</h2>
+        {logs.length > 0 && (logs.length > PREVIEW
+          ? <button type="button" className="log-count" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+              {logs.length} entries {open ? '▴' : '▾'}
+            </button>
+          : <span className="log-count">{logs.length} {logs.length === 1 ? 'entry' : 'entries'}</span>)}
+      </div>
+      {logs.length === 0 && <p className="muted">Nothing yet. Tell Hera things like "got my period today" or "cramps are a 6".</p>}
+      {groups.map(g => (
+        <div key={g.key}>
+          {open && <p className="log-month">{g.key}</p>}
+          <ul className="log-list">
+            {g.items.map(l => (
+              <li key={l.id}>
+                <span className="log-date">{prettyDate(l.log_date)}</span>
+                <span className="log-text">{LOG_LABELS[l.kind]}{l.value ? `: ${l.value}` : ''}</span>
+                <button className="del" onClick={() => onRemove(l)} aria-label={`Delete ${LOG_LABELS[l.kind]} on ${prettyDate(l.log_date)}`}>×</button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+      {logs.length > PREVIEW && (
+        <button type="button" className="link left" aria-expanded={open} onClick={() => setOpen(o => !o)}>
+          {open ? 'Show less' : `Show all ${logs.length} entries`}
+        </button>
+      )}
+    </section>
   )
 }
 

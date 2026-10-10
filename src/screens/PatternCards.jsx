@@ -88,8 +88,9 @@ export function PodcastCard({ profile, cycle, today }) {
   const pod = podcastFor(profile, cycle, today)
   return (
     <section className="card">
-      <h2>🎧 Podcast for right now</h2>
-      <p className="pod-name">{pod.name} <span className="muted small">with {pod.host}</span></p>
+      <h2>🎧 Listen pick for right now</h2>
+      <p className="pod-name">{pod.name}</p>
+      <p className="muted small pod-by">{pod.host} · {pod.show}</p>
       <p className="tip">{pod.why[0].toUpperCase() + pod.why.slice(1)}</p>
       <a className="chip small pod-link" href={pod.url} target="_blank" rel="noreferrer">Listen ↗</a>
       <p className="fine">A new pick every 3 days, matched to your phase.</p>

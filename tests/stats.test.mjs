@@ -42,6 +42,7 @@ const p1 = podcastFor({ life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-01
 assert.deepEqual(podcastFor({ life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-01-06').name, p1.name)
 assert.notEqual(podcastFor({ life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-01-07').name, p1.name)
 for (const pod of Object.values(PODCASTS)) assert.ok(pod.url.startsWith('https://') && pod.name)
+for (const pod of Object.values(PODCASTS)) assert.ok(new URL(pod.url).pathname.split('/').filter(Boolean).length >= 2 && pod.show, 'a specific talk or episode, not a show page: ' + pod.url)
 console.log('all stats and podcast tests passed')
 
 // Today's line

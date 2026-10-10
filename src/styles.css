@@ -425,3 +425,13 @@ button.cal-day.picked, button.cal-day.today.picked { box-shadow: 0 0 0 3px var(-
 .undo-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px;
   margin: 0; padding: 0 16px 10px; font-size: .78rem; color: var(--muted); }
 .undo-row .link { font-size: .85rem; padding: 4px 0; }
+
+/* Listen pick byline */
+.pod-by { margin: 2px 0 6px; }
+
+/* What you've told me: folded list */
+.log-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+button.log-count { background: none; border: 0; padding: 4px 0; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.log-head h2 { margin: 0; }
+.log-count { font-size: .8rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.log-month { margin: 12px 0 2px; font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--kicker); }
