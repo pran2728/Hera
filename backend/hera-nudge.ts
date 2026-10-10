@@ -561,6 +561,11 @@ function stageTipList(p, cycle) {
   return null
 }
 
+function dailyTip(p, cycle, today) {
+  const list = stageTipList(p, cycle) ?? TIPS[cycle?.lateLuteal ? 'luteal' : cycle?.phase] ?? ['Drink some water, stretch for a minute, and check in with how you feel today.']
+  return list[Math.abs(daysBetween('2026-01-01', today)) % list.length]
+}
+
 function nudgeText(kind, p, cycle, today = '2026-01-01') {
   const tone = p.tone || 'bestie'
   const name = p.name ? p.name.split(' ')[0] : ''
@@ -616,9 +621,7 @@ function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts' ? `${lead} ${q}${folic}` : `${hi}${lead} ${q} Answer whatever you like${heart}${folic}`
     }
     case 'daily_tip': {
-      const stageTips = stageTipList(p, cycle)
-      const list = stageTips ?? TIPS[cycle.phase] ?? ['Drink some water, stretch for a minute, and check in with how you feel today.']
-      const pick = list[Math.abs(daysBetween('2026-01-01', today)) % list.length]
+      const pick = dailyTip(p, cycle, today)
       return tone === 'facts' ? pick.replace(/ 💜|!/g, '.').replace(/\.\./g, '.') : `${hi}${pick}`
     }
   }

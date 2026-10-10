@@ -148,8 +148,8 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
   return (
     <div className="app">
       <header className="topbar">
-        <button className="link" onClick={onBack} aria-label="Back to chat">← Chat</button>
-        <span className="topbar-title">My profile</span>
+        {onBack ? <button className="link" onClick={onBack} aria-label="Back to chat">← Chat</button> : <span style={{ width: 64 }} />}
+        <span className="topbar-title">Me</span>
         <span style={{ width: 64 }} />
       </header>
 

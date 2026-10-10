@@ -326,7 +326,7 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .policy p, .policy li { line-height: 1.5; font-size: .93rem; margin: 0; }
 .policy ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
 .policy-head { display: flex; gap: 12px; align-items: center; }
-.flag { margin-top: 6px; background: none; border: 0; padding: 2px 0; color: var(--muted); font-size: .75rem; font-weight: 700; cursor: pointer; }
+.flag { display: block; margin-top: 6px; background: none; border: 0; padding: 2px 0; color: var(--muted); font-size: .75rem; font-weight: 700; cursor: pointer; }
 .flag:hover { color: var(--plum); }
 .sheet-backdrop { position: fixed; inset: 0; background: rgba(20, 8, 18, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
 .sheet { width: 100%; max-width: 560px; background: var(--card); border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
@@ -336,3 +336,49 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .policy-link { font-size: .85rem; }
 .link.muted-link { color: var(--muted); font-size: .85rem; }
 .overlay { position: fixed; inset: 0; z-index: 40; background: var(--cream); overflow-y: auto; }
+
+/* ---- Tabs and the Today screen ---- */
+.shell { height: 100%; display: flex; flex-direction: column; max-width: 720px; margin: 0 auto; }
+.shell-main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pane { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pane[hidden] { display: none; }
+.pane > .app, .pane > main { flex: 1; min-height: 0; height: auto; }
+.tabbar { display: flex; border-top: 1px solid var(--line); background: var(--card); padding: 6px 4px calc(6px + env(safe-area-inset-bottom)); }
+.tab { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; background: none; border: 0; color: var(--muted); font: 700 .72rem 'Nunito', sans-serif; padding: 6px 0; cursor: pointer; border-radius: 12px; min-height: 48px; }
+.tab.on { color: var(--plum); }
+.tab:focus-visible { outline: 2px solid var(--plum); outline-offset: -2px; }
+
+.today-hello { margin: 4px 2px 0; font-family: 'Fraunces', Georgia, serif; font-size: 1.5rem; color: var(--ink); }
+.today-hero { display: flex; align-items: center; gap: 16px; padding: 20px 18px; border-radius: 22px; }
+.today-hero.tint-menstrual { background: #FBE0E5; } .today-hero.tint-follicular { background: #DDF0E3; }
+.today-hero.tint-ovulatory { background: #FDEBC6; } .today-hero.tint-luteal { background: #E8E1F6; }
+.today-hero.tint-pms { background: #E3D9F3; } .today-hero.tint-late { background: #F8E1D4; } .today-hero.tint-pregnant { background: #FBE3EA; }
+.today-hero .big-ring { flex: none; }
+.big-ring-track { fill: none; stroke: rgba(43, 26, 38, .12); stroke-width: 10; }
+.big-ring-fill { fill: none; stroke: #6B2D5C; stroke-width: 10; stroke-linecap: round; }
+.tint-menstrual .big-ring-fill { stroke: #C2526C; } .tint-follicular .big-ring-fill { stroke: #2F7D52; }
+.tint-ovulatory .big-ring-fill { stroke: #A86F06; } .tint-luteal .big-ring-fill, .tint-pms .big-ring-fill { stroke: #6E50B8; }
+.big-ring-day { font: 800 20px 'Nunito', sans-serif; fill: #2B1A26; }
+.big-ring-of { font: 700 13px 'Nunito', sans-serif; fill: #5A4652; }
+.hero-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; color: #2B1A26; }
+.hero-kicker { font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #5A4652; }
+.hero-title { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 1.55rem; line-height: 1.15; color: #2B1A26; }
+.hero-sub { margin: 0; font-size: .9rem; line-height: 1.4; color: #4A3742; }
+.thought .hero-kicker { color: var(--muted); }
+.thought-line { margin: 0; font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 1.2rem; line-height: 1.45; color: var(--ink); }
+.quick { display: flex; flex-wrap: wrap; gap: 8px; }
+.quick-chip { font-size: .9rem; padding: 8px 14px; }
+.quick-pick { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--hera-bubble); }
+.logged-today { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.tag-x { background: none; border: 0; margin-left: 4px; padding: 0 2px; color: var(--muted); font-size: 1rem; line-height: 1; cursor: pointer; }
+@media (prefers-color-scheme: dark) {
+  .today-hero.tint-menstrual { background: #4A2430; } .today-hero.tint-follicular { background: #1F3A2A; }
+  .today-hero.tint-ovulatory { background: #4A3812; } .today-hero.tint-luteal, .today-hero.tint-pms { background: #2F2648; }
+  .today-hero.tint-late { background: #45291D; } .today-hero.tint-pregnant { background: #45222F; }
+  .hero-text, .hero-title, .big-ring-day { color: #F7EAF1; fill: #F7EAF1; }
+  .hero-kicker, .hero-sub, .big-ring-of { color: #D9C5D1; fill: #D9C5D1; }
+  .big-ring-track { stroke: rgba(255, 255, 255, .15); }
+  .tint-menstrual .big-ring-fill { stroke: #F08EA4; } .tint-follicular .big-ring-fill { stroke: #8FD3A8; }
+  .tint-ovulatory .big-ring-fill { stroke: #F2C25A; } .tint-luteal .big-ring-fill, .tint-pms .big-ring-fill { stroke: #B9A2F0; }
+  .tint-late .big-ring-fill, .tint-pregnant .big-ring-fill { stroke: #F6C6B8; }
+}

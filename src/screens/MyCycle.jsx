@@ -66,7 +66,7 @@ export default function MyCycle({ userId, onBack }) {
   return (
     <div className="app">
       <header className="topbar">
-        <button className="link" onClick={onBack} aria-label="Back to chat">← Chat</button>
+        {onBack ? <button className="link" onClick={onBack} aria-label="Back to chat">← Chat</button> : <span style={{ width: 64 }} />}
         <span className="topbar-title">{profile?.life_stage === 'pregnant' ? 'My pregnancy' : profile?.life_stage === 'postmenopause' ? 'My health' : 'My cycle'}</span>
         <span style={{ width: 64 }} />
       </header>

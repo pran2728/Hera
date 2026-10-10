@@ -4,8 +4,6 @@ import { supabase } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { prettyDate } from '../lib/cycle'
 import { Logo } from '../App.jsx'
-import MyCycle from './MyCycle.jsx'
-import Profile from './Profile.jsx'
 import { pushSupport, enablePush, explainPushError } from '../lib/push'
 import { linkify } from '../lib/linkify.jsx'
 import FeedbackSheet from './FeedbackSheet.jsx'
@@ -63,13 +61,11 @@ async function explain(error) {
   return 'Something went wrong. Try again?'
 }
 
-export default function Chat({ session, profile, onProfileChange, onDeleted }) {
+export default function Chat({ session, profile, onProfileChange, active = true, version = 0, onOpenCycle }) {
   const [messages, setMessages] = useState(null)
   const [cycle, setCycle] = useState(null)
   const [text, setText] = useState('')
   const [thinking, setThinking] = useState(false)
-  const [showCycle, setShowCycle] = useState(false)
-  const [showProfile, setShowProfile] = useState(false)
   const [flagging, setFlagging] = useState(null) // the reply she's reporting
   const bottom = useRef(null)
   const input = useRef(null)
@@ -91,6 +87,14 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
     document.addEventListener('visibilitychange', onVisible)
     return () => document.removeEventListener('visibilitychange', onVisible)
   }, [])
+
+  // Something was logged on Today, or she came back to this tab: refresh the phase chip.
+  useEffect(() => {
+    if (!active) return
+    supabase.functions.invoke('hera-chat', { body: { action: 'status', today: localToday() } })
+      .then(({ data }) => data?.cycle && setCycle(data.cycle))
+    setTimeout(() => bottom.current?.scrollIntoView(), 50)
+  }, [active, version])
 
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
 
@@ -133,39 +137,14 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
 
   const chip = cycleChip(cycle)
 
-  if (showProfile) {
-    return <Profile session={session} profile={profile} onSaved={onProfileChange} onDeleted={onDeleted}
-                    onBack={() => setShowProfile(false)} />
-  }
-
-  if (showCycle) {
-    return <MyCycle userId={session.user.id} onBack={() => {
-      setShowCycle(false)
-      supabase.functions.invoke('hera-chat', { body: { action: 'status', today: localToday() } })
-        .then(({ data }) => data?.cycle && setCycle(data.cycle))
-    }} />
-  }
-
   return (
     <div className="app">
       <header className="topbar">
         <div className="topbar-brand"><Logo size={32} /><span>Hera</span></div>
         {chip
-          ? <button className={`phase ${cycle.phase || cycle.mode}`} onClick={() => setShowCycle(true)}
+          ? <button className={`phase ${cycle.phase || cycle.mode}`} onClick={onOpenCycle}
                     aria-label={`${chip}. Open my cycle`}>{chip}</button>
           : <span />}
-        <div className="topbar-actions">
-          <button className="icon-btn" onClick={() => setShowCycle(true)} aria-label="My cycle" title="My cycle">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <rect x="3" y="4.5" width="18" height="16.5" rx="3" /><path d="M16 2.5v4M8 2.5v4M3 10h18" /><circle cx="12" cy="15.5" r="1.6" fill="currentColor" stroke="none" />
-            </svg>
-          </button>
-          <button className="icon-btn" onClick={() => setShowProfile(true)} aria-label="My profile" title="My profile">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="8" r="4" /><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" />
-            </svg>
-          </button>
-        </div>
       </header>
 
       <ReminderBanner userId={session.user.id} />

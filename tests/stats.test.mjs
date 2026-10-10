@@ -43,3 +43,18 @@ assert.deepEqual(podcastFor({ life_stage: 'pregnant' }, { mode: 'pregnant' }, '2
 assert.notEqual(podcastFor({ life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-01-07').name, p1.name)
 for (const pod of Object.values(PODCASTS)) assert.ok(pod.url.startsWith('https://') && pod.name)
 console.log('all stats and podcast tests passed')
+
+// Today's line
+{
+  const { lineFor, lineBucket, LINES } = await import('../src/lib/quotes.js')
+  const me = { life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5 }
+  const at = d => computeCycle(me, ['2026-10-01'], d)
+  assert.equal(lineBucket(me, at('2026-10-02')), 'menstrual')
+  assert.equal(lineBucket(me, at('2026-10-24')), 'pms')
+  assert.equal(lineBucket({ ...me, life_stage: 'ttc' }, at('2026-10-18')), 'ttc_wait')
+  assert.equal(lineBucket({ life_stage: 'pregnant' }, { mode: 'pregnant' }), 'pregnant')
+  assert.equal(lineBucket(me, computeCycle(me, ['2026-08-01'], '2026-10-10')), 'general') // late: nothing that hints
+  assert.notEqual(lineFor(me, at('2026-10-02'), '2026-10-02'), lineFor(me, at('2026-10-03'), '2026-10-03')) // new line each day
+  for (const list of Object.values(LINES)) for (const l of list) assert.ok(l.length < 140 && !/[\u{1F300}-\u{1FAFF}]/u.test(l), l)
+  console.log('daily lines: ok')
+}

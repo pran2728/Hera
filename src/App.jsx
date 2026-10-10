@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { supabase, isConfigured, withRetry, isNetworkError, diagnose } from './lib/supabase'
 import Login from './screens/Login.jsx'
 import Onboarding from './screens/Onboarding.jsx'
-import Chat from './screens/Chat.jsx'
+import Home from './screens/Home.jsx'
 import SetupNeeded from './screens/SetupNeeded.jsx'
 import JoinPartner from './screens/JoinPartner.jsx'
 import PartnerHome from './screens/PartnerHome.jsx'
@@ -90,7 +90,7 @@ function SignedIn({ session }) {
     return <PartnerHome session={session} onUseForMe={() => setOwnCycle(true)} />
   }
   if (!profile?.onboarded_at) return <Onboarding session={session} onDone={setProfile} />
-  return <Chat session={session} profile={profile} onProfileChange={setProfile}
+  return <Home session={session} profile={profile} onProfileChange={setProfile}
                onDeleted={() => setProfile(null)} />
 }
 
