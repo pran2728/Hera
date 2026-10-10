@@ -58,3 +58,26 @@ console.log('all stats and podcast tests passed')
   for (const list of Object.values(LINES)) for (const l of list) assert.ok(l.length < 140 && !/[\u{1F300}-\u{1FAFF}]/u.test(l), l)
   console.log('daily lines: ok')
 }
+
+// Story cards
+{
+  const { storiesFor, plateFor } = await import('../src/lib/stories.js')
+  const me = { life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5, diet: 'vegetarian' }
+  const c = computeCycle(me, ['2026-10-01'], '2026-10-02')
+  const s = storiesFor(me, c, '2026-10-02')
+  assert.deepEqual(s.map(x => x.key), ['body', 'plate', 'move', 'fact', 'checkin'])
+  assert.equal(s[0].kicker, 'Day 2 · Menstrual')
+  assert.ok(!s[1].chips.some(f => /egg|fish|chicken/i.test(f)), 'vegetarian plate')
+  assert.ok(!plateFor({ diet: 'vegan' }, 'follicular').foods.some(f => /curd|paneer|egg|chicken/i.test(f)), 'vegan plate')
+  assert.ok(!plateFor({ diet: 'jain' }, 'luteal').foods.some(f => /sweet potato|egg/i.test(f)), 'jain plate')
+  assert.ok(!plateFor({ diet: 'jain' }, 'menstrual').foods.some(f => /ginger/i.test(f)), 'jain: no fresh ginger')
+  assert.ok(plateFor({ diet: 'nonveg' }, 'menstrual').foods.length === 5)
+  assert.ok(!plateFor({ diet: 'vegetarian', allergies: 'sesame, dates' }, 'menstrual').foods.some(f => /dates/i.test(f)), 'allergies respected')
+  const preg = storiesFor({ life_stage: 'pregnant', diet: 'vegetarian' }, { mode: 'pregnant', pregnancy: { week: 15, day: 2, trimester: 2, toGo: 173 } }, '2026-10-02')
+  assert.equal(preg[0].title, 'Baby is the size of an apple')
+  assert.ok(!preg[1].chips.some(f => /egg/i.test(f)))
+  const late = storiesFor(me, computeCycle(me, ['2026-08-01'], '2026-10-10'), '2026-10-10')
+  assert.equal(late[0].kicker, 'Today') // nothing that hints at a late period
+  assert.notEqual(storiesFor(me, c, '2026-10-02')[3].title, storiesFor(me, c, '2026-10-03')[3].title)
+  console.log('story cards: ok')
+}

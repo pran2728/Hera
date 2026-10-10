@@ -7,6 +7,8 @@ import { lineFor } from '../lib/quotes'
 import { dailyTip } from '../lib/nudges'
 import { quickItems, quickLog, undoLog, logLabel } from '../lib/quicklog'
 import { PodcastCard } from './PatternCards.jsx'
+import { StoryRow, StoryViewer } from './Stories.jsx'
+import { storiesFor } from '../lib/stories'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const short = d => `${Number(d.slice(8))} ${MON[Number(d.slice(5, 7)) - 1]}`
@@ -83,6 +85,8 @@ export default function Today({ session, profile, onProfileChange, active, onTal
   const [picking, setPicking] = useState(null) // an item that needs a level (cramps, sex drive)
   const [toast, setToast] = useState('')
   const [busy, setBusy] = useState(false)
+  const [story, setStory] = useState(null) // which story is open
+  const [seenV, setSeenV] = useState(0)
 
   async function load() {
     const { data, error } = await withRetry(() => supabase.from('cycle_logs').select('id, log_date, kind, value, created_at')
@@ -120,9 +124,16 @@ export default function Today({ session, profile, onProfileChange, active, onTal
   if (!cycle) return <main className="cycle-page"><div className="bubble hera typing"><span /><span /><span /></div></main>
 
   const items = quickItems(profile, cycle)
+  const stories = storiesFor(profile, cycle, today)
   return (
     <main className="cycle-page today">
       <p className="today-hello">{greetingFor(profile.name)}</p>
+      <StoryRow stories={stories} today={today} onOpen={setStory} version={seenV} />
+      {story !== null && (
+        <StoryViewer stories={stories} start={story} today={today}
+                     onClose={() => { setStory(null); setSeenV(v => v + 1) }}
+                     onAnswer={async (kind, value) => { await log({ kind }, value) }} />
+      )}
       <Hero cycle={cycle} profile={profile} today={today} />
 
       <section className="card thought">
