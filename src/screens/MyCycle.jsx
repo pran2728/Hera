@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { computeCycle, prettyDate, daysBetween, PHASE_LABELS } from '../lib/cycle'
@@ -229,8 +229,11 @@ const ACTION_LABELS = {
 }
 
 function DaySheet({ day, actions, saving, onPick, onClose }) {
+  const ref = useRef(null)
+  // On a phone the options appear below the calendar: bring them into view.
+  useEffect(() => { ref.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }) }, [day])
   return (
-    <div className="day-sheet" role="dialog" aria-label={`Edit ${prettyDate(day)}`}>
+    <div ref={ref} className="day-sheet" role="dialog" aria-label={`Edit ${prettyDate(day)}`}>
       <strong>{prettyDate(day)}</strong>
       <div className="day-actions">
         {actions.map(a => (

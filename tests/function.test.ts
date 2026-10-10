@@ -6,7 +6,7 @@ function assertEquals(a: unknown, b: unknown) {
 
 Deno.env.set('SUPABASE_URL', 'http://x'); Deno.env.set('GEMINI_API_KEY', 'k'); Deno.env.set('GEMINI_TRY_MS', '300')
 const realFetch = globalThis.fetch
-let hangModels: string[] = []
+let hangModels: string[] = []; let noThinking: string[] = []
 let nextAI: unknown = null; let lastAIBody: any = null; let aiStatus = 200; let busyModels: string[] = []; const modelsTried: string[] = []
 globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
   if (String(url).includes('/v1beta/models?')) {
@@ -23,6 +23,9 @@ globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     const model = String(url).split('/models/')[1].split(':')[0]; modelsTried.push(model)
     if (hangModels.includes(model)) {
       return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError'))))
+    }
+    if (noThinking.includes(model) && lastAIBody.generationConfig.thinkingConfig) {
+      return new Response('{"error":{"code":400,"message":"Request contains an invalid argument.","status":"INVALID_ARGUMENT"}}', { status: 400 })
     }
     if (busyModels.includes(model)) return new Response('{"error":{"code":503,"message":"high demand"}}', { status: 503 })
     if (aiStatus !== 200) return new Response('rate', { status: aiStatus })
@@ -169,7 +172,7 @@ Deno.test('full flow', async (t) => {
     const r = await call({ message: 'how am I doing today?', today: '2026-09-28' })
     assertEquals(r.json.reply, 'Hey babe, I got you')
     // discovered models, newest first, image models skipped
-    assertEquals(modelsTried, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash', 'gemini-4.0-flash-lite'])
+    assertEquals(modelsTried, ['gemini-flash-lite-latest', 'gemini-flash-latest', 'gemini-4.0-flash-lite'])
     busyModels = []
   })
 
@@ -182,20 +185,20 @@ Deno.test('full flow', async (t) => {
   })
 
   await t.step('a hanging model times out and the next one answers', async () => {
-    hangModels = ['gemini-flash-latest']; modelsTried.length = 0
+    hangModels = ['gemini-flash-lite-latest']; modelsTried.length = 0
     nextAI = { reply: 'Here now!', logs: [], safety_level: 'none' }
     const t0 = Date.now()
     const r = await call({ message: 'what should I eat?', today: '2026-09-28' })
     assertEquals(r.json.reply, 'Here now!')
     assert(Date.now() - t0 < 3000, 'did not wait for the hung model')
-    assertEquals(modelsTried.slice(0, 2), ['gemini-flash-latest', 'gemini-flash-lite-latest'])
+    assertEquals(modelsTried.slice(0, 2), ['gemini-flash-lite-latest', 'gemini-flash-latest'])
     hangModels = []
   })
 
   await t.step('fast mode: no long thinking, structured JSON', async () => {
     nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
     await call({ message: 'what should I eat?', today: '2026-09-28' })
-    assertEquals(lastAIBody.generationConfig.thinkingConfig, { thinkingBudget: 0 })
+    assertEquals(lastAIBody.generationConfig.thinkingConfig, { thinkingLevel: 'minimal' })
     assert(lastAIBody.generationConfig.responseSchema, 'schema sent')
   })
 
@@ -209,5 +212,18 @@ Deno.test('full flow', async (t) => {
     assertEquals(db.messages.length, before + 2)
     const r2 = await call({ message: 'thank you!', today: '2026-09-28' })
     assertEquals(modelsTried.length, 0); assert(r2.json.reply.length > 5)
+  })
+
+  await t.step('a rejected setting is dropped, and remembered for next time', async () => {
+    noThinking = ['gemini-flash-lite-latest']; modelsTried.length = 0
+    nextAI = { reply: 'First', logs: [], safety_level: 'none' }
+    assertEquals((await call({ message: 'what should I eat?', today: '2026-09-28' })).json.reply, 'First')
+    assertEquals(modelsTried, ['gemini-flash-lite-latest', 'gemini-flash-lite-latest'])
+    assert(lastAIBody.generationConfig.responseSchema && !lastAIBody.generationConfig.thinkingConfig, 'kept the schema, dropped thinking')
+    modelsTried.length = 0
+    nextAI = { reply: 'Second', logs: [], safety_level: 'none' }
+    assertEquals((await call({ message: 'and tomorrow?', today: '2026-09-28' })).json.reply, 'Second')
+    assertEquals(modelsTried, ['gemini-flash-lite-latest']) // straight to the settings that work
+    noThinking = []
   })
 })

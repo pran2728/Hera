@@ -234,7 +234,8 @@ const RESPONSE_SCHEMA = {
 
 // Ask Google which Flash models this key can use, so retired models never break Hera.
 let modelCache: { at: number; list: string[] } | null = null
-const FALLBACK_MODELS = ['gemini-flash-latest', 'gemini-flash-lite-latest']
+// Lite first: it answers in a couple of seconds, which matters more in a chat than the bigger model's extra depth.
+const FALLBACK_MODELS = ['gemini-flash-lite-latest', 'gemini-flash-latest']
 
 async function availableModels(key: string): Promise<string[]> {
   const pinned = Deno.env.get('GEMINI_MODEL')
@@ -253,9 +254,9 @@ async function availableModels(key: string): Promise<string[]> {
         .filter((m: { supportedGenerationMethods?: string[] }) => m.supportedGenerationMethods?.includes('generateContent'))
         .map((m: { name: string }) => m.name.replace(/^models\//, ''))
         .filter((n: string) => /flash/.test(n) && !/image|tts|audio|live|embedding|thinking|exp|preview|\d{3}$/.test(n))
-      // Newest versions first: 'latest' aliases, then by version number.
+      // Newest versions first: 'latest' aliases, then by version number; the faster lite model before its bigger sibling.
       const version = (n: string) => Number((n.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? 0)
-      const score = (n: string) => (n.includes('latest') ? 1000 : 0) + version(n) * 10 - (n.includes('lite') ? 1 : 0)
+      const score = (n: string) => (n.includes('latest') ? 1000 : 0) + version(n) * 10 + (n.includes('lite') ? 1 : 0)
       names.sort((a, b) => score(b) - score(a))
       if (names.length) list = [...new Set([...FALLBACK_MODELS, ...names])].slice(0, 5)
     }
@@ -268,11 +269,22 @@ async function availableModels(key: string): Promise<string[]> {
 
 // Newer Gemini models "think" before answering, which can take a minute or more.
 // Chat replies are short, so keep thinking to the minimum each model allows.
+// Models name this setting differently: 3.x (and the 'latest' aliases) use thinkingLevel, 2.5 uses thinkingBudget.
 function thinkingFor(model: string) {
   const v = Number((model.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? 0)
-  if (v >= 3) return { thinkingLevel: 'minimal' }
-  return { thinkingBudget: 0 }
+  if (v >= 3 || model.includes('latest')) return { thinkingLevel: 'minimal' }
+  if (v >= 2.5) return { thinkingBudget: 0 }
+  return null
 }
+
+// What to send, fastest first. If Google rejects a setting (400), drop it and try again.
+// The settings that worked are remembered per model, so later messages skip the rejected ones.
+const ATTEMPTS = [
+  (m: string) => thinkingFor(m) ? { schema: true, thinking: thinkingFor(m) } : null,
+  () => ({ schema: true, thinking: null }),
+  () => ({ schema: false, thinking: null })
+]
+const workingAttempt = new Map<string, number>()
 
 async function askGemini(system: string, past: { role: string; content: string }[], message: string): Promise<HeraResult> {
   const key = Deno.env.get('GEMINI_API_KEY')
@@ -296,9 +308,9 @@ async function askGemini(system: string, past: { role: string; content: string }
   const DEADLINE = 45_000
   let lastError = ''
   for (const model of models) {
-    // First try: fast mode (structured JSON, no long "thinking"). If Google rejects
-    // those settings (400), retry the same model with plain JSON mode.
-    for (const fast of [true, false]) {
+    for (let a = workingAttempt.get(model) ?? 0; a < ATTEMPTS.length; a++) {
+      const opts = ATTEMPTS[a](model)
+      if (!opts) continue
       const left = DEADLINE - (Date.now() - started)
       if (left < 4000) throw new Error(lastError || 'timeout: Gemini took too long')
       let res: Response
@@ -306,7 +318,7 @@ async function askGemini(system: string, past: { role: string; content: string }
         res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-          signal: AbortSignal.timeout(Math.min(Number(Deno.env.get('GEMINI_TRY_MS') ?? 25_000), left)),
+          signal: AbortSignal.timeout(Math.min(Number(Deno.env.get('GEMINI_TRY_MS') ?? 15_000), left)),
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: system }] },
             contents: turns,
@@ -314,7 +326,8 @@ async function askGemini(system: string, past: { role: string; content: string }
               temperature: 0.7,
               maxOutputTokens: 2048,
               responseMimeType: 'application/json',
-              ...(fast ? { responseSchema: RESPONSE_SCHEMA, thinkingConfig: thinkingFor(model) } : {})
+              ...(opts.schema ? { responseSchema: RESPONSE_SCHEMA } : {}),
+              ...(opts.thinking ? { thinkingConfig: opts.thinking } : {})
             },
             safetySettings: [
               'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
@@ -323,7 +336,7 @@ async function askGemini(system: string, past: { role: string; content: string }
           })
         })
       } catch (e) {
-        lastError = `timeout ${model}: ${String(e).slice(0, 120)}`
+        lastError = `timeout ${model} after ${Date.now() - started} ms: ${String(e).slice(0, 80)}`
         console.error('Gemini error:', lastError)
         break // too slow: try the next model
       }
@@ -335,16 +348,17 @@ async function askGemini(system: string, past: { role: string; content: string }
           lastError = `empty response from ${model} (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? 'unknown'})`
           break // try the next model
         }
-        console.log(`Gemini ${model} answered in ${Date.now() - started} ms`)
+        workingAttempt.set(model, a)
+        console.log(`Gemini ${model} answered in ${Date.now() - started} ms (settings ${a + 1})`)
         try {
           return JSON.parse(text)
         } catch {
           return { reply: text, logs: [], safety_level: 'none' }
         }
       }
-      lastError = `${res.status} ${model}: ${(await res.text()).slice(0, 200)}`
+      lastError = `${res.status} ${model} (settings ${a + 1}): ${(await res.text()).slice(0, 300)}`
       console.error('Gemini error:', lastError)
-      if (res.status === 400 && fast) continue // retry this model without the extra settings
+      if (res.status === 400) continue // drop a setting and retry this model
       break // 404 (model gone), 429 (limit), 5xx (busy): try the next model
     }
   }

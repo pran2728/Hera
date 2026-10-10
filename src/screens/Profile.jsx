@@ -299,6 +299,7 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
           <button type="button" className="link left" onClick={() => supabase.auth.signOut()}>Sign out</button>
           <button type="button" className="link left danger" onClick={removeAccount}>Delete my account</button>
           <button type="button" className="link left muted-link" onClick={deleteEverything}>Only clear my chats and logs</button>
+          <p className="fine">Hera version {__BUILD__}</p>
         </section>
         {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
       </form>

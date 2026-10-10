@@ -5,6 +5,8 @@ import { VitePWA } from 'vite-plugin-pwa'
 // Hera is a Progressive Web App: it installs to the home screen on
 // Android, iPhone and laptops straight from the browser.
 export default defineConfig({
+  // Shown at the bottom of Me, so we can tell which version a phone is running.
+  define: { __BUILD__: JSON.stringify(new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', hour12: false })) },
   plugins: [
     react(),
     VitePWA({
