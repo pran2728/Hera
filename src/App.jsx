@@ -8,9 +8,17 @@ import JoinPartner from './screens/JoinPartner.jsx'
 import PartnerHome from './screens/PartnerHome.jsx'
 import { pendingInvite, clearInvite } from './lib/partner'
 import { applyTheme } from './lib/theme'
+import Privacy from './screens/Privacy.jsx'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = still checking
+  const [privacy, setPrivacy] = useState(() => new URLSearchParams(window.location.search).has('privacy'))
+
+  useEffect(() => {
+    const open = () => setPrivacy(true)
+    window.addEventListener('hera-privacy', open)
+    return () => window.removeEventListener('hera-privacy', open)
+  }, [])
 
   useEffect(() => {
     if (!isConfigured) return
@@ -19,10 +27,21 @@ export default function App() {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  if (!isConfigured) return <SetupNeeded />
-  if (session === undefined) return <Splash />
-  if (!session) return <Login />
-  return <SignedIn session={session} />
+  // The privacy page opens on top, so closing it returns to exactly where she was.
+  const overlay = privacy && (
+    <div className="overlay">
+      <Privacy onBack={() => {
+        setPrivacy(false)
+        if (window.location.search.includes('privacy')) window.history.replaceState(null, '', window.location.pathname)
+      }} />
+    </div>
+  )
+  let screen
+  if (!isConfigured) screen = <SetupNeeded />
+  else if (session === undefined) screen = <Splash />
+  else if (!session) screen = <Login />
+  else screen = <SignedIn session={session} />
+  return <>{screen}{overlay}</>
 }
 
 function SignedIn({ session }) {

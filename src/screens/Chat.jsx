@@ -8,6 +8,7 @@ import MyCycle from './MyCycle.jsx'
 import Profile from './Profile.jsx'
 import { pushSupport, enablePush, explainPushError } from '../lib/push'
 import { linkify } from '../lib/linkify.jsx'
+import FeedbackSheet from './FeedbackSheet.jsx'
 
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
@@ -69,6 +70,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
   const [thinking, setThinking] = useState(false)
   const [showCycle, setShowCycle] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
+  const [flagging, setFlagging] = useState(null) // the reply she's reporting
   const bottom = useRef(null)
   const input = useRef(null)
 
@@ -182,6 +184,9 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
             {m.changes && changeTags(m.changes).length > 0 && (
               <div className="logged">{changeTags(m.changes).map(t => <span key={t} className="tag">✓ {t}</span>)}</div>
             )}
+            {m.role === 'hera' && !m.failed && (
+              <button className="flag" onClick={() => setFlagging(m.content)} aria-label="Report a problem with this reply">Something wrong?</button>
+            )}
             {m.partnerAlerted && <div className="partner-alerted">💜 I've asked {m.partnerAlerted} to check on you. They don't see what you said.</div>}
             {m.logged?.length > 0 && (
               <div className="logged">
@@ -194,6 +199,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
             )}
           </div>
         ))}
+        {flagging && <FeedbackSheet reply={flagging} onClose={() => setFlagging(null)} />}
         {thinking && <div className="bubble hera typing" aria-label="Hera is typing"><span /><span /><span /></div>}
         <div ref={bottom} />
       </main>

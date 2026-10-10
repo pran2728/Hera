@@ -9,6 +9,7 @@
 //   {action:"test"}          a signed-in user asks for a test notification
 //   {action:"partner_view"}  a signed-in partner asks for her phase + today's tip (nothing else)
 //   {action:"crisis"}        hera-chat, on her behalf, when she says she's not okay
+//   {action:"delete_account"} a signed-in user deletes their login and, through it, all their data
 
 import { createClient } from 'npm:@supabase/supabase-js@2'
 import webpush from 'npm:web-push@3.6.7'
@@ -933,9 +934,16 @@ Deno.serve(async (req) => {
       return json({ publicKey: (await vapidKeys()).publicKey })
     }
 
-    if (['test', 'partner_view', 'crisis'].includes(body.action)) {
+    if (['test', 'partner_view', 'crisis', 'delete_account'].includes(body.action)) {
       const user = await signedInUser(req)
       if (!user) return json({ error: 'not_signed_in' }, 401)
+      if (body.action === 'delete_account') {
+        // Every table points at the login with "on delete cascade", so this removes everything.
+        const { error } = await admin.auth.admin.deleteUser(user.id)
+        if (error) { console.error('delete_account failed:', error.message); return json({ error: 'delete_failed' }, 500) }
+        console.log('account deleted')
+        return json({ deleted: true })
+      }
       if (body.action === 'partner_view') return json(await partnerScreen(user.id))
       if (body.action === 'crisis') return json(await alertPartner(user.id))
       const { data: subs } = await admin.from('push_subscriptions').select('*').eq('user_id', user.id)

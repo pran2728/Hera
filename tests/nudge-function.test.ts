@@ -1,4 +1,4 @@
-import { db } from './mocks/supabase-admin.js'
+import { db, deletedUsers } from './mocks/supabase-admin.js'
 import ece from 'npm:http_ece@1.2.0'
 import { createECDH, randomBytes } from 'node:crypto'
 function assert(c: unknown, m = 'assertion failed') { if (!c) throw new Error(m) }
@@ -97,6 +97,14 @@ Deno.test('hera-nudge', async (t) => {
     const r = await call({ action: 'test' }, { Authorization: 'Bearer good' })
     eq(r.json, { devices: 1, delivered: 1 }); assert(pushes.at(-1)!.includes('how my reminders will look'))
     eq((await call({ action: 'test' }, { Authorization: 'Bearer bad' })).status, 401)
+  })
+  await t.step('delete account removes her login and everything linked to it', async () => {
+    eq((await call({ action: 'delete_account' }, { Authorization: 'Bearer bad' })).status, 401)
+    db.messages.push({ user_id: 'p1', role: 'hera', content: 'partner-side row' })
+    const r = await call({ action: 'delete_account' }, { Authorization: 'Bearer partner' })
+    eq(r.json, { deleted: true }); eq(deletedUsers, ['p1'])
+    eq(db.partner_links.length, 0); eq(db.messages.some((m: any) => m.user_id === 'p1'), false)
+    eq(db.profiles.length, 1) // her data untouched
   })
   await t.step('forgets a phone that unsubscribed', async () => {
     phoneStatus = 410

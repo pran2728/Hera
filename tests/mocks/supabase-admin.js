@@ -40,13 +40,21 @@ class Q {
     return { data: this.single ? (out[0] ?? null) : out, error: null }
   }
 }
+export const deletedUsers = []
 export function createClient(_u, _k, opts) {
   const auth = opts?.global?.headers?.Authorization
   return {
-    auth: { getUser: async () => {
+    auth: {
+      admin: { deleteUser: async (id) => {
+        deletedUsers.push(id)
+        for (const t of Object.keys(db)) db[t] = db[t].filter(r => r.user_id !== id && r.id !== id && r.owner_id !== id && r.partner_id !== id)
+        return { error: null }
+      } },
+      getUser: async () => {
       const id = { 'Bearer good': 'u1', 'Bearer partner': 'p1' }[auth]
       return id ? { data: { user: { id } } } : { data: { user: null } }
     } },
-    from: t => new Q(t)
+    from: t => new Q(t),
+    // Deleting a login cascades to every table, like the real database.
   }
 }

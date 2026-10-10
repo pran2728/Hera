@@ -6,6 +6,8 @@ import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS }
 import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
 import PartnerSettings from './PartnerSettings.jsx'
 import ThemePicker from './ThemePicker.jsx'
+import FeedbackSheet from './FeedbackSheet.jsx'
+import { downloadData, deleteAccount, openPrivacy } from '../lib/account'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 
@@ -48,6 +50,8 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
   const [f, setF] = useState(() => fromProfile(profile))
   const [status, setStatus] = useState('') // '', 'saving', 'saved'
   const [error, setError] = useState('')
+  const [feedback, setFeedback] = useState(false)
+  const [dataNote, setDataNote] = useState('')
   const set = (k, v) => { setF(x => ({ ...x, [k]: v })); setStatus('') }
   const toggle = (k, v) => set(k, f[k].includes(v) ? f[k].filter(x => x !== v) : [...f[k], v])
 
@@ -107,6 +111,23 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
     onSaved(data)
   }
 
+  async function download() {
+    setDataNote('Preparing your file…')
+    try {
+      const how = await downloadData(session.user)
+      setDataNote(how === 'cancelled' ? '' : 'Your data is ready 💜')
+    } catch { setDataNote("Couldn't prepare your file. Try again?") }
+  }
+
+  async function removeAccount() {
+    const typed = prompt('This deletes your Hera account, login, chats, logs, partner link and everything else. It cannot be undone.\n\nType DELETE to confirm.')
+    if (typed?.trim().toUpperCase() !== 'DELETE') return
+    setDataNote('Deleting…')
+    try { await deleteAccount() } // signing out takes her back to the start
+    catch (e) { setDataNote(e.message) }
+  }
+
+  // Old path, kept for when the hera-nudge function isn't updated yet.
   async function deleteEverything() {
     if (!confirm('Delete all your chats, logs and profile from Hera? This cannot be undone.')) return
     if (!confirm('Are you sure? Everything Hera knows about you will be erased.')) return
@@ -254,11 +275,21 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
         </div>
 
         <section className="card">
+          <h2>Your data</h2>
+          <button type="button" className="link left" onClick={openPrivacy}>Privacy policy</button>
+          <button type="button" className="link left" onClick={download}>Download my data</button>
+          <button type="button" className="link left" onClick={() => setFeedback(true)}>Send feedback</button>
+          {dataNote && <p className="muted small" role="status">{dataNote}</p>}
+        </section>
+
+        <section className="card">
           <h2>Account</h2>
           <p className="muted small">Signed in as {session.user.email}</p>
           <button type="button" className="link left" onClick={() => supabase.auth.signOut()}>Sign out</button>
-          <button type="button" className="link left danger" onClick={deleteEverything}>Delete all my data</button>
+          <button type="button" className="link left danger" onClick={removeAccount}>Delete my account</button>
+          <button type="button" className="link left muted-link" onClick={deleteEverything}>Only clear my chats and logs</button>
         </section>
+        {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
       </form>
     </div>
   )

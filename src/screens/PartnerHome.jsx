@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { Logo } from '../App.jsx'
 import { NotificationsSwitch } from './Reminders.jsx'
 import ThemePicker from './ThemePicker.jsx'
+import FeedbackSheet from './FeedbackSheet.jsx'
+import { deleteAccount, openPrivacy } from '../lib/account'
 import { monthGrid } from '../lib/calendar'
 import { addDays, daysBetween } from '../lib/cycle'
 import { localToday } from '../lib/dates'
@@ -14,6 +16,7 @@ export default function PartnerHome({ session, onUseForMe }) {
   const [view, setView] = useState(null)
   const [error, setError] = useState('')
   const [attempt, setAttempt] = useState(0)
+  const [feedback, setFeedback] = useState(false)
 
   useEffect(() => {
     setError('')
@@ -103,7 +106,14 @@ export default function PartnerHome({ session, onUseForMe }) {
           <p className="muted small">Signed in as {session.user.email}</p>
           {view?.linked && <button type="button" className="link left" onClick={leave}>Stop being her partner</button>}
           <button type="button" className="link left" onClick={onUseForMe}>Use Hera for my own cycle</button>
+          <button type="button" className="link left" onClick={() => setFeedback(true)}>Send feedback</button>
+          <button type="button" className="link left" onClick={openPrivacy}>Privacy policy</button>
           <button type="button" className="link left" onClick={() => supabase.auth.signOut()}>Sign out</button>
+          <button type="button" className="link left danger" onClick={async () => {
+            if (prompt('Delete your Hera account? Type DELETE to confirm.')?.trim().toUpperCase() !== 'DELETE') return
+            try { await deleteAccount() } catch (e) { setError(e.message) }
+          }}>Delete my account</button>
+          {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
         </section>
       </main>
     </div>

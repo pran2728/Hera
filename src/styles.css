@@ -321,3 +321,18 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .pod-name { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 1.15rem; color: var(--ink); }
 .pod-link { text-decoration: none; }
 .partner-dates { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 1.25rem; color: var(--ink); }
+
+/* ---- Beta: privacy, feedback ---- */
+.policy p, .policy li { line-height: 1.5; font-size: .93rem; margin: 0; }
+.policy ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.policy-head { display: flex; gap: 12px; align-items: center; }
+.flag { margin-top: 6px; background: none; border: 0; padding: 2px 0; color: var(--muted); font-size: .75rem; font-weight: 700; cursor: pointer; }
+.flag:hover { color: var(--plum); }
+.sheet-backdrop { position: fixed; inset: 0; background: rgba(20, 8, 18, .45); display: flex; align-items: flex-end; justify-content: center; z-index: 50; }
+.sheet { width: 100%; max-width: 560px; background: var(--card); border-radius: 20px 20px 0 0; padding: 20px 16px calc(20px + env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; }
+.sheet h2 { margin: 0; font-size: 1.1rem; }
+.sheet textarea { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--line); background: var(--cream); color: var(--ink); font: inherit; resize: vertical; }
+.quoted { margin: 0; padding: 8px 12px; border-left: 3px solid var(--plum); background: var(--hera-bubble); border-radius: 8px; font-size: .85rem; color: var(--ink); }
+.policy-link { font-size: .85rem; }
+.link.muted-link { color: var(--muted); font-size: .85rem; }
+.overlay { position: fixed; inset: 0; z-index: 40; background: var(--cream); overflow-y: auto; }

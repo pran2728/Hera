@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Logo } from '../App.jsx'
 import { pendingInvite } from '../lib/partner'
+import { openPrivacy } from '../lib/account'
 
 // Email + password login. Chosen over magic links because a link opened
 // from email lands in the browser, not in the installed home-screen app on iPhone.
@@ -94,6 +95,7 @@ export default function Login() {
           {mode === 'signin' ? 'Create an account' : 'Sign in'}
         </button>
       </p>
+      <button type="button" className="link policy-link" onClick={openPrivacy}>Privacy policy</button>
     </main>
   )
 }

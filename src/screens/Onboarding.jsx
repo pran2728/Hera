@@ -5,6 +5,7 @@ import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES } from '../lib/opt
 import { localToday } from '../lib/dates'
 import { prettyDate, addDays } from '../lib/cycle'
 import { Logo } from '../App.jsx'
+import { openPrivacy } from '../lib/account'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 
@@ -93,7 +94,7 @@ const STEPS = [
     key: 'consent',
     ask: () => [
       'Before we start, the important bit:',
-      '• I save our chats and what you log so I can help you. Only you can see them.',
+      '• I save our chats and what you log so I can help you. Only you can see them, and you can download or delete everything any time.',
       "• I give guidance, not diagnosis. For anything worrying, please see a doctor.",
       "• While Hera is being tested, my replies come from Google's free AI, which may use chats to improve its products. Please use made-up test details for now, not your real health data."
     ].join('\n'),
@@ -217,7 +218,10 @@ export default function Onboarding({ session, onDone }) {
 
       {blocked
         ? <div className="composer"><button className="primary wide" onClick={() => supabase.auth.signOut()}>Sign out</button></div>
-        : !saving && <AnswerBox key={step.key} step={step} onAnswer={answer} />}
+        : !saving && <>
+            {step.key === 'consent' && <button type="button" className="link policy-link" onClick={openPrivacy}>Read the full privacy policy</button>}
+            <AnswerBox key={step.key} step={step} onAnswer={answer} />
+          </>}
     </div>
   )
 }

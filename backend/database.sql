@@ -209,3 +209,23 @@ alter table public.profiles add column if not exists theme text default 'plum'; 
 -- She decides whether her partner sees her next likely period dates.
 alter table public.partner_links add column if not exists share_dates boolean not null default true;
 grant update (notify_heads_up, notify_tips, notify_crisis, share_dates) on public.partner_links to authenticated;
+
+-- ================= Beta: feedback and bug list (safe to re-run) =================
+-- "Something wrong?" reports from the app. Read them in Supabase → Table Editor → feedback.
+create table if not exists public.feedback (
+  id          bigint generated always as identity primary key,
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  category    text not null check (category in ('wrong_info','wrong_log','tone','bug','idea','other')),
+  hera_reply  text,          -- the reply she flagged, if any
+  note        text,
+  status      text not null default 'new' check (status in ('new','fixing','fixed','wont_fix')),
+  created_at  timestamptz default now()
+);
+alter table public.feedback enable row level security;
+drop policy if exists "own feedback" on public.feedback;
+create policy "own feedback" on public.feedback
+  for all to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid());
+revoke all on public.feedback from anon, authenticated;
+grant select on public.feedback to authenticated;
+grant insert (category, hera_reply, note) on public.feedback to authenticated;
+grant select, insert, update, delete on public.feedback to service_role;
