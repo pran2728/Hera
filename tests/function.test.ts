@@ -4,8 +4,9 @@ function assertEquals(a: unknown, b: unknown) {
   if (JSON.stringify(a) !== JSON.stringify(b)) throw new Error(`Expected ${JSON.stringify(b)}, got ${JSON.stringify(a)}`)
 }
 
-Deno.env.set('SUPABASE_URL', 'http://x'); Deno.env.set('GEMINI_API_KEY', 'k')
+Deno.env.set('SUPABASE_URL', 'http://x'); Deno.env.set('GEMINI_API_KEY', 'k'); Deno.env.set('GEMINI_TRY_MS', '300')
 const realFetch = globalThis.fetch
+let hangModels: string[] = []
 let nextAI: unknown = null; let lastAIBody: any = null; let aiStatus = 200; let busyModels: string[] = []; const modelsTried: string[] = []
 globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
   if (String(url).includes('/v1beta/models?')) {
@@ -20,6 +21,9 @@ globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
   if (String(url).includes('googleapis')) {
     lastAIBody = JSON.parse(String(init?.body))
     const model = String(url).split('/models/')[1].split(':')[0]; modelsTried.push(model)
+    if (hangModels.includes(model)) {
+      return new Promise((_, reject) => init?.signal?.addEventListener('abort', () => reject(new DOMException('timed out', 'TimeoutError'))))
+    }
     if (busyModels.includes(model)) return new Response('{"error":{"code":503,"message":"high demand"}}', { status: 503 })
     if (aiStatus !== 200) return new Response('rate', { status: aiStatus })
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(nextAI) }] } }] }))
@@ -42,7 +46,7 @@ Deno.test('rejects signed-out users', async () => {
 })
 
 Deno.test('asks for onboarding first', async () => {
-  assertEquals((await call({ message: 'hi', today: '2026-09-28' })).json.error, 'onboarding_needed')
+  assertEquals((await call({ message: 'how am I doing today?', today: '2026-09-28' })).json.error, 'onboarding_needed')
 })
 
 Deno.test('full flow', async (t) => {
@@ -99,13 +103,13 @@ Deno.test('full flow', async (t) => {
 
   await t.step('rate limit gives a friendly reply', async () => {
     aiStatus = 429
-    const r = await call({ message: 'hi', today: '2026-09-28' })
+    const r = await call({ message: 'how am I doing today?', today: '2026-09-28' })
     assert(r.json.reply.includes('minute')); aiStatus = 200
   })
 
   await t.step('rate limit reply includes a detail line', async () => {
     aiStatus = 500
-    const r = await call({ message: 'hi', today: '2026-09-28' })
+    const r = await call({ message: 'how am I doing today?', today: '2026-09-28' })
     assert(String(r.json.detail).startsWith('500')); aiStatus = 200
   })
 
@@ -154,7 +158,7 @@ Deno.test('full flow', async (t) => {
     const r = await call({ message: 'had 3 hot flushes today and night sweats last night', today: '2026-09-28' })
     assertEquals(r.json.logged.map((l: any) => l.kind), ['hot_flash', 'night_sweat'])
     nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
-    await call({ message: 'hi', today: '2026-09-28' })
+    await call({ message: 'how am I doing today?', today: '2026-09-28' })
     assert(lastAIBody.systemInstruction.parts[0].text.includes('hot flushes on 1 days; night sweats on 1 days'), 'symptoms in prompt')
     db.profiles[0].life_stage = 'cycles'
   })
@@ -162,7 +166,7 @@ Deno.test('full flow', async (t) => {
   await t.step('busy model falls back to the next one', async () => {
     busyModels = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash']; modelsTried.length = 0
     nextAI = { reply: 'Hey babe, I got you', logs: [], safety_level: 'none' }
-    const r = await call({ message: 'hi', today: '2026-09-28' })
+    const r = await call({ message: 'how am I doing today?', today: '2026-09-28' })
     assertEquals(r.json.reply, 'Hey babe, I got you')
     // discovered models, newest first, image models skipped
     assertEquals(modelsTried, ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash', 'gemini-4.0-flash-lite'])
@@ -175,5 +179,35 @@ Deno.test('full flow', async (t) => {
     const roles = lastAIBody.contents.map((c: any) => c.role)
     assertEquals(roles[0], 'user')
     for (let i = 1; i < roles.length; i++) assert(roles[i] !== roles[i - 1])
+  })
+
+  await t.step('a hanging model times out and the next one answers', async () => {
+    hangModels = ['gemini-flash-latest']; modelsTried.length = 0
+    nextAI = { reply: 'Here now!', logs: [], safety_level: 'none' }
+    const t0 = Date.now()
+    const r = await call({ message: 'what should I eat?', today: '2026-09-28' })
+    assertEquals(r.json.reply, 'Here now!')
+    assert(Date.now() - t0 < 3000, 'did not wait for the hung model')
+    assertEquals(modelsTried.slice(0, 2), ['gemini-flash-latest', 'gemini-flash-lite-latest'])
+    hangModels = []
+  })
+
+  await t.step('fast mode: no long thinking, structured JSON', async () => {
+    nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
+    await call({ message: 'what should I eat?', today: '2026-09-28' })
+    assertEquals(lastAIBody.generationConfig.thinkingConfig, { thinkingBudget: 0 })
+    assert(lastAIBody.generationConfig.responseSchema, 'schema sent')
+  })
+
+  await t.step('small talk gets an instant reply without the AI', async () => {
+    modelsTried.length = 0
+    const before = db.messages.length
+    const r = await call({ message: 'Heyyy Hera!! 💜', today: '2026-09-28' })
+    assertEquals(modelsTried.length, 0)
+    assert(r.json.quick, 'quick reply')
+    assert(r.json.reply.includes('Pran') && r.json.reply.includes('on your period'), r.json.reply)
+    assertEquals(db.messages.length, before + 2)
+    const r2 = await call({ message: 'thank you!', today: '2026-09-28' })
+    assertEquals(modelsTried.length, 0); assert(r2.json.reply.length > 5)
   })
 })

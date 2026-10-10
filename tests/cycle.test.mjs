@@ -57,4 +57,19 @@ const pred = predictedDays(computeCycle(base, ['2026-09-28'], '2026-09-28'))
 assert.equal(pred.period.has('2026-10-26'), true); assert.equal(pred.ovulation, '2026-10-11')
 const sep = monthGrid(2026, 8) // Sep 2026 starts on a Tuesday
 assert.equal(sep[0][0], null); assert.equal(sep[0][1], '2026-09-01'); assert.equal(sep.flat().filter(Boolean).length, 30)
+{
+  const { dayActions, periodEdit, periodFor } = await import('../src/lib/calendar.js')
+  const T = '2026-10-10', starts = ['2026-09-12', '2026-08-15'], ends = ['2026-09-16']
+  assert.deepEqual(dayActions('2026-10-11', starts, ends, 5, T), [], 'no future days')
+  assert.deepEqual(dayActions('2026-07-03', starts, ends, 5, T), ['start'], 'any old month')
+  assert.deepEqual(dayActions('2026-09-12', starts, ends, 5, T), ['end', 'remove'])
+  assert.deepEqual(dayActions('2026-09-14', starts, ends, 5, T), ['start', 'end', 'remove'])
+  assert.deepEqual(dayActions('2026-09-16', starts, ends, 5, T), ['start', 'remove'])
+  assert.deepEqual(dayActions('2026-09-18', starts, ends, 5, T), ['start', 'end'], 'ended later than logged')
+  assert.deepEqual(dayActions('2026-08-17', starts, ends, 5, T), ['start', 'end', 'remove'], 'estimated period')
+  assert.equal(periodFor('2026-08-20', starts, ends, 5, T), null)
+  assert.deepEqual(periodEdit('remove', '2026-09-14', starts, ends, 5, T).remove.map(r => r.kind), ['period_start', 'period_end'])
+  assert.deepEqual(periodEdit('start', '2026-07-03', starts, ends, 5, T).add, [{ kind: 'period_start', date: '2026-07-03' }])
+  assert.deepEqual(periodEdit('end', '2026-09-18', starts, ends, 5, T).remove[0], { kind: 'period_end', from: '2026-09-12', to: '2026-09-27' })
+}
 console.log('all calendar tests passed')

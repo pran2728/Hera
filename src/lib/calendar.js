@@ -35,3 +35,52 @@ export function monthGrid(year, month) {
   for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7))
   return weeks
 }
+
+// ---------- Editing past periods from the calendar ----------
+// Which period (if any) a day belongs to: { start, end } where end is the logged end or the estimated last day.
+export function periodFor(day, starts, ends, periodLength, today) {
+  const sortedEnds = [...ends].sort()
+  for (const start of [...starts].sort().reverse()) {
+    if (start > day) continue
+    const end = sortedEnds.find(e => e >= start && daysBetween(start, e) <= 15)
+    let last = end ?? addDays(start, periodLength - 1)
+    if (!end && last > today) last = today
+    return day <= last ? { start, end: end ?? null, last } : null
+  }
+  return null
+}
+
+// What she can do when she taps a day: 'start', 'end', 'remove'. Future days can't be edited.
+export function dayActions(day, starts, ends, periodLength, today) {
+  if (!day || day > today) return []
+  const p = periodFor(day, starts, ends, periodLength, today)
+  if (p) {
+    const out = []
+    if (p.start !== day) out.push('start')
+    if (p.end !== day) out.push('end')
+    out.push('remove')
+    return out
+  }
+  const out = ['start']
+  // Just after a period: she can say it ended later than we thought.
+  const before = [...starts].sort().reverse().find(s => s < day)
+  if (before && daysBetween(before, day) <= 14) out.push('end')
+  return out
+}
+
+// The database changes for a tapped action: rows to delete (by kind and date range) and rows to add.
+export function periodEdit(action, day, starts, ends, periodLength, today) {
+  const p = periodFor(day, starts, ends, periodLength, today)
+  if (action === 'start') {
+    // One start per period: replace any start within 10 days.
+    return { remove: [{ kind: 'period_start', from: addDays(day, -10), to: addDays(day, 10) }], add: [{ kind: 'period_start', date: day }] }
+  }
+  if (action === 'end') {
+    const start = p?.start ?? [...starts].sort().reverse().find(s => s < day)
+    return { remove: [{ kind: 'period_end', from: start, to: addDays(start, 15) }], add: [{ kind: 'period_end', date: day }] }
+  }
+  if (action === 'remove' && p) {
+    return { remove: [{ kind: 'period_start', from: p.start, to: p.start }, { kind: 'period_end', from: p.start, to: addDays(p.start, 15) }], add: [] }
+  }
+  return { remove: [], add: [] }
+}

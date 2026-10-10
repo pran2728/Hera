@@ -99,11 +99,15 @@ export default function Chat({ session, profile, onProfileChange, active = true,
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages, thinking])
 
   async function ask(message) {
-    let res = await supabase.functions.invoke('hera-chat', { body: { message, today: localToday() } })
-    // A dropped connection usually means the request never arrived: retry once.
+    // Never wait more than a minute: Hera's server gives up on the AI after ~45 seconds anyway.
+    const call = () => supabase.functions.invoke('hera-chat', { body: { message, today: localToday() }, timeout: 60_000 })
+    const started = Date.now()
+    let res = await call()
     if (res.error instanceof FunctionsFetchError) {
+      // A quick drop usually means the request never arrived: retry once. A slow one timed out: don't make her wait twice.
+      if (Date.now() - started > 10_000) return { ...res, slow: true }
       await new Promise(r => setTimeout(r, 1500))
-      res = await supabase.functions.invoke('hera-chat', { body: { message, today: localToday() } })
+      res = await call()
     }
     return res
   }
@@ -120,9 +124,9 @@ export default function Chat({ session, profile, onProfileChange, active = true,
     }
     setThinking(true)
 
-    const { data, error } = await ask(message)
+    const { data, error, slow } = await ask(message)
     setThinking(false)
-    const reply = error ? await explain(error) : data.reply
+    const reply = slow ? "Sorry babe, that took me way too long 🙈 Tap retry and I'll be quicker." : error ? await explain(error) : data.reply
     const failed = !!error || !!data?.error
     setMessages(m => [...m, {
       id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,

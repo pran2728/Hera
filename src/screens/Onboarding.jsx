@@ -96,6 +96,7 @@ const STEPS = [
       'Before we start, the important bit:',
       '• I save our chats and what you log so I can help you. Only you can see them, and you can download or delete everything any time.',
       "• I give guidance, not diagnosis. For anything worrying, please see a doctor.",
+      '• Got something wrong above? No stress: you can change any of these answers any time in Me.',
       "• While Hera is being tested, my replies come from Google's free AI, which may use chats to improve its products. Please use made-up test details for now, not your real health data."
     ].join('\n'),
     input: { type: 'chips', options: [['agree', 'I understand and agree 💜']] }
@@ -127,6 +128,8 @@ export default function Onboarding({ session, onDone }) {
     return i
   })
   const [transcript, setTranscript] = useState(draft?.transcript ?? [{ role: 'hera', text: STEPS[0].ask({}) }])
+  // Earlier states, so a mis-tapped answer can be undone.
+  const [history, setHistory] = useState(draft?.history ?? [])
   const [blocked, setBlocked] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -136,8 +139,8 @@ export default function Onboarding({ session, onDone }) {
 
   // Keep progress if the app is closed or reloads mid-way.
   useEffect(() => {
-    try { localStorage.setItem(draftKey(session.user.id), JSON.stringify({ answers, index, transcript })) } catch { /* private mode */ }
-  }, [answers, index, transcript, session.user.id])
+    try { localStorage.setItem(draftKey(session.user.id), JSON.stringify({ answers, index, transcript, history })) } catch { /* private mode */ }
+  }, [answers, index, transcript, history, session.user.id])
 
   const step = STEPS[index]
 
@@ -146,6 +149,7 @@ export default function Onboarding({ session, onDone }) {
     if (step.key === 'name') value = extractName(value) || value.trim()
     const next = { ...answers, [step.key]: value }
     const lines = [...transcript, { role: 'me', text: shown }]
+    setHistory(h => [...h, { answers, index, transcript }].slice(-20))
 
     if (step.key === 'adult' && value === 'no') {
       setTranscript([...lines, {
@@ -166,6 +170,15 @@ export default function Onboarding({ session, onDone }) {
       setTranscript([...lines, { role: 'hera', text: STEPS[n].ask(next) }])
       setIndex(n)
     }
+  }
+
+  // "Oops, wrong one": go back to the previous question.
+  function undo() {
+    const prev = history.at(-1)
+    if (!prev) return
+    setHistory(h => h.slice(0, -1))
+    setAnswers(prev.answers); setIndex(prev.index); setTranscript(prev.transcript)
+    setBlocked(false); setError('')
   }
 
   async function finish(a) {
@@ -222,10 +235,19 @@ export default function Onboarding({ session, onDone }) {
       </main>
 
       {blocked
-        ? <div className="composer"><button className="primary wide" onClick={() => supabase.auth.signOut()}>Sign out</button></div>
+        ? <div className="composer column">
+            <button className="primary wide" onClick={() => supabase.auth.signOut()}>Sign out</button>
+            <button type="button" className="link" onClick={undo}>↩ I tapped the wrong one</button>
+          </div>
         : !saving && <>
             {step.key === 'consent' && <button type="button" className="link policy-link" onClick={openPrivacy}>Read the full privacy policy</button>}
             <AnswerBox key={step.key} step={step} onAnswer={answer} />
+            {history.length > 0 && (
+              <p className="undo-row">
+                <button type="button" className="link" onClick={undo}>↩ Change my last answer</button>
+                <span>You can also edit all of this later in <b>Me</b>.</span>
+              </p>
+            )}
           </>}
     </div>
   )

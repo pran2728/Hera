@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { computeCycle, prettyDate, daysBetween, PHASE_LABELS } from '../lib/cycle'
-import { periodDays, predictedDays, monthGrid } from '../lib/calendar'
+import { periodDays, predictedDays, monthGrid, dayActions, periodEdit } from '../lib/calendar'
 import { PatternsCard, PodcastCard } from './PatternCards.jsx'
 import { PregnancyCard, WarningSigns, TtcCard, SymptomsCard, BonesCard, SexDriveCard, ReadMore } from './StageCards.jsx'
 
@@ -19,6 +19,8 @@ export default function MyCycle({ userId, onBack }) {
   const [logs, setLogs] = useState(null)
   const [month, setMonth] = useState(() => ({ y: Number(today.slice(0, 4)), m: Number(today.slice(5, 7)) - 1 }))
   const [error, setError] = useState('')
+  const [picked, setPicked] = useState(null) // a tapped calendar day
+  const [saving, setSaving] = useState(false)
 
   async function load() {
     const [p, l] = await Promise.all([
@@ -38,7 +40,7 @@ export default function MyCycle({ userId, onBack }) {
     const cycle = computeCycle(profile, starts, today)
     const allStarts = [...new Set([...starts, profile.last_period_start].filter(Boolean))]
     return {
-      cycle,
+      cycle, allStarts, ends,
       actual: periodDays(allStarts, ends, profile.period_length || 5, today),
       predicted: predictedDays(cycle),
       showFertile: cycle.mode === 'cycle',
@@ -56,6 +58,38 @@ export default function MyCycle({ userId, onBack }) {
       await supabase.from('profiles').update({ last_period_start: next }).eq('id', userId)
     }
     load()
+  }
+
+  // Tapping a past day: mark a period start or end, or remove a period, in any month.
+  async function editDay(action) {
+    const day = picked
+    const len = profile.period_length || 5
+    const { remove, add } = periodEdit(action, day, view.allStarts, view.ends, len, today)
+    setSaving(true); setError('')
+    try {
+      for (const r of remove) {
+        const { error } = await supabase.from('cycle_logs').delete().eq('kind', r.kind).gte('log_date', r.from).lte('log_date', r.to)
+        if (error) throw error
+      }
+      for (const a of add) {
+        const { error } = await supabase.from('cycle_logs').insert({ user_id: userId, log_date: a.date, kind: a.kind })
+        if (error) throw error
+      }
+      // Keep her profile's "last period" pointing at her latest start.
+      const { data: latest } = await supabase.from('cycle_logs').select('log_date').eq('kind', 'period_start')
+        .order('log_date', { ascending: false }).limit(1)
+      const old = profile.last_period_start
+      const oldGone = old && remove.some(r => r.kind === 'period_start' && old >= r.from && old <= r.to)
+      const candidates = [latest?.[0]?.log_date, oldGone ? null : old].filter(Boolean).sort()
+      const next = candidates.at(-1) ?? null
+      if (next !== old) await supabase.from('profiles').update({ last_period_start: next }).eq('id', userId)
+      setPicked(null)
+      await load()
+    } catch (e) {
+      setError(e.message || 'Could not save that. Try again?')
+    } finally {
+      setSaving(false)
+    }
   }
 
   const shift = n => setMonth(({ y, m }) => {
@@ -100,11 +134,20 @@ export default function MyCycle({ userId, onBack }) {
                     isFertile && !isPeriod && 'fertile', d === today && 'today'].filter(Boolean).join(' ')
                   const label = [prettyDate(d), isPeriod && 'period', isPredicted && 'predicted period',
                     isFertile && 'fertile window', isOv && 'estimated ovulation', d === today && 'today'].filter(Boolean).join(', ')
+                  if (d > today) {
+                    return (
+                      <div key={i} className={cls} role="gridcell" aria-label={label}>
+                        {Number(d.slice(8))}
+                        {isOv && <span className="ov-dot" />}
+                      </div>
+                    )
+                  }
                   return (
-                    <div key={i} className={cls} role="gridcell" aria-label={label}>
+                    <button key={i} type="button" className={`${cls} tappable${picked === d ? ' picked' : ''}`} role="gridcell"
+                            aria-label={`${label}. Tap to edit`} onClick={() => setPicked(picked === d ? null : d)}>
                       {Number(d.slice(8))}
                       {isOv && <span className="ov-dot" />}
-                    </div>
+                    </button>
                   )
                 })}
               </div>
@@ -113,6 +156,10 @@ export default function MyCycle({ userId, onBack }) {
                 <span><i className="sw predicted" /> Predicted</span>
                 {view.showFertile && <span><i className="sw fertile" /> Fertile window (estimate)</span>}
               </div>
+              {picked
+                ? <DaySheet day={picked} saving={saving} onPick={editDay} onClose={() => setPicked(null)}
+                            actions={dayActions(picked, view.allStarts, view.ends, profile.period_length || 5, today)} />
+                : <p className="fine cal-hint">Tap any past day to mark when a period started or ended. Use ‹ to go back as many months as you like.</p>}
             </section>}
 
             {['perimenopause', 'postmenopause'].includes(profile.life_stage) && <BonesCard diet={profile.diet} />}
@@ -141,11 +188,33 @@ export default function MyCycle({ userId, onBack }) {
   )
 }
 
+const ACTION_LABELS = {
+  start: '🩸 My period started this day',
+  end: 'My period ended this day',
+  remove: 'No period here: remove it'
+}
+
+function DaySheet({ day, actions, saving, onPick, onClose }) {
+  return (
+    <div className="day-sheet" role="dialog" aria-label={`Edit ${prettyDate(day)}`}>
+      <strong>{prettyDate(day)}</strong>
+      <div className="day-actions">
+        {actions.map(a => (
+          <button key={a} type="button" className={a === 'remove' ? 'chip quiet' : 'chip'} disabled={saving} onClick={() => onPick(a)}>
+            {ACTION_LABELS[a]}
+          </button>
+        ))}
+        <button type="button" className="link" disabled={saving} onClick={onClose}>Cancel</button>
+      </div>
+    </div>
+  )
+}
+
 function Summary({ cycle, today }) {
   const message = {
     menopause: "You're postmenopausal, so there's no cycle to predict. Any bleeding now is worth checking with a doctor.",
     no_phases: `You're on ${cycle.reason}, so there are no natural phases to predict. I'll track bleeding and symptoms.`,
-    unknown: 'Tell Hera when your last period started and your calendar will fill in.'
+    unknown: 'Tell Hera when your last period started, or tap the day on the calendar below, and your calendar will fill in.'
   }[cycle.mode]
   if (message) return <section className="card"><p className="muted">{message}</p></section>
 

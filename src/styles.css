@@ -406,3 +406,22 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .story-nav, .story-nav:active, .story-nav:hover, .story-nav:focus { -webkit-appearance: none; appearance: none; background: transparent; box-shadow: none; }
 .story-nav:focus:not(:focus-visible) { outline: none; }
 .story-dot, .quick-chip, .tab { -webkit-tap-highlight-color: transparent; }
+
+/* Tap a past calendar day to edit it */
+button.cal-day {
+  background: none; color: inherit; font: inherit; font-size: .9rem; font-weight: 600; padding: 0; margin: 0;
+  cursor: pointer; -webkit-tap-highlight-color: transparent; width: 100%;
+}
+button.cal-day:hover { box-shadow: 0 0 0 2px var(--line); }
+button.cal-day.picked, button.cal-day.today.picked { box-shadow: 0 0 0 3px var(--gold); }
+.cal-hint { margin: 10px 0 0; font-size: .75rem; color: var(--muted); line-height: 1.4; }
+.day-sheet { margin-top: 12px; padding: 12px; border-radius: 16px; background: var(--hera-bubble); display: grid; gap: 10px; }
+.day-sheet strong { color: var(--ink); }
+.day-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.day-actions .chip { font-size: .88rem; padding: 8px 12px; }
+.day-actions .chip.quiet { background: transparent; }
+
+/* Onboarding: undo a mis-tapped answer */
+.undo-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px;
+  margin: 0; padding: 0 16px 10px; font-size: .78rem; color: var(--muted); }
+.undo-row .link { font-size: .85rem; padding: 4px 0; }

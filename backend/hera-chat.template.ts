@@ -59,13 +59,21 @@ Deno.serve(async (req) => {
     const message = String(body.message ?? '').trim().slice(0, 2000)
     if (!message) return json({ error: 'empty_message' }, 400)
 
+    // ---- Simple small talk ("hi", "thanks", "bye"): instant ready-made reply, no AI needed ----
+    const quick = quickReply(message, profile, cycle, today)
+    if (quick) {
+      await supabase.from('messages').insert({ user_id: userId, role: 'user', content: message })
+      await supabase.from('messages').insert({ user_id: userId, role: 'hera', content: quick })
+      return json({ reply: quick, logged: [], cycle, safety_level: 'none', partner_alerted: null, profile_changes: {}, quick: true })
+    }
+
     // ---- What she logged lately (for menopause symptoms and her sex-drive pattern) ----
     const { data: recentLogs } = await supabase.from('cycle_logs').select('log_date, kind, value')
       .gte('log_date', addDays(today, -200)).order('log_date', { ascending: false }).limit(400)
 
     // ---- Recent conversation ----
     const { data: history } = await supabase.from('messages').select('role, content')
-      .order('created_at', { ascending: false }).limit(20)
+      .order('created_at', { ascending: false }).limit(12)
     const past = (history ?? []).reverse()
 
     await supabase.from('messages').insert({ user_id: userId, role: 'user', content: message })
@@ -236,7 +244,8 @@ async function availableModels(key: string): Promise<string[]> {
   let list = FALLBACK_MODELS
   try {
     const res = await fetch('https://generativelanguage.googleapis.com/v1beta/models?pageSize=200', {
-      headers: { 'x-goog-api-key': key }
+      headers: { 'x-goog-api-key': key },
+      signal: AbortSignal.timeout(5000)
     })
     if (res.ok) {
       const data = await res.json()
@@ -257,6 +266,14 @@ async function availableModels(key: string): Promise<string[]> {
   return [...new Set([pinned, ...list].filter(Boolean))] as string[]
 }
 
+// Newer Gemini models "think" before answering, which can take a minute or more.
+// Chat replies are short, so keep thinking to the minimum each model allows.
+function thinkingFor(model: string) {
+  const v = Number((model.match(/gemini-(\d+(?:\.\d+)?)/) ?? [])[1] ?? 0)
+  if (v >= 3) return { thinkingLevel: 'minimal' }
+  return { thinkingBudget: 0 }
+}
+
 async function askGemini(system: string, past: { role: string; content: string }[], message: string): Promise<HeraResult> {
   const key = Deno.env.get('GEMINI_API_KEY')
   if (!key) throw new Error('GEMINI_API_KEY secret is missing')
@@ -271,37 +288,54 @@ async function askGemini(system: string, past: { role: string; content: string }
     else turns.push({ role, parts: [{ text: m.content }] })
   }
 
-  // Free models get busy (503), rate-limited (429) or retired (404): fall through to the next one.
+  // Free models get busy (503), rate-limited (429), retired (404) or slow: fall through to the next one.
+  // Each try gets its own time limit and the whole answer must come within ~45 seconds,
+  // so Hera never leaves her waiting for minutes.
   const models = await availableModels(key)
+  const started = Date.now()
+  const DEADLINE = 45_000
   let lastError = ''
   for (const model of models) {
-    for (const schema of [true, false]) {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify({
-          systemInstruction: { parts: [{ text: system }] },
-          contents: turns,
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 4096,
-            responseMimeType: 'application/json',
-            // If Google ever rejects the schema, retry once with JSON mode only.
-            ...(schema ? { responseSchema: RESPONSE_SCHEMA } : {})
-          },
-          safetySettings: [
-            'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
-            'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT'
-          ].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' }))
+    // First try: fast mode (structured JSON, no long "thinking"). If Google rejects
+    // those settings (400), retry the same model with plain JSON mode.
+    for (const fast of [true, false]) {
+      const left = DEADLINE - (Date.now() - started)
+      if (left < 4000) throw new Error(lastError || 'timeout: Gemini took too long')
+      let res: Response
+      try {
+        res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+          signal: AbortSignal.timeout(Math.min(Number(Deno.env.get('GEMINI_TRY_MS') ?? 25_000), left)),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: system }] },
+            contents: turns,
+            generationConfig: {
+              temperature: 0.7,
+              maxOutputTokens: 2048,
+              responseMimeType: 'application/json',
+              ...(fast ? { responseSchema: RESPONSE_SCHEMA, thinkingConfig: thinkingFor(model) } : {})
+            },
+            safetySettings: [
+              'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH',
+              'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT'
+            ].map(category => ({ category, threshold: 'BLOCK_ONLY_HIGH' }))
+          })
         })
-      })
+      } catch (e) {
+        lastError = `timeout ${model}: ${String(e).slice(0, 120)}`
+        console.error('Gemini error:', lastError)
+        break // too slow: try the next model
+      }
       if (res.ok) {
         const data = await res.json()
-        const text = data?.candidates?.[0]?.content?.parts?.map((p: { text?: string }) => p.text ?? '').join('') ?? ''
+        const text = data?.candidates?.[0]?.content?.parts?.filter((p: { thought?: boolean }) => !p.thought)
+          .map((p: { text?: string }) => p.text ?? '').join('') ?? ''
         if (!text) {
           lastError = `empty response from ${model} (${data?.candidates?.[0]?.finishReason ?? data?.promptFeedback?.blockReason ?? 'unknown'})`
           break // try the next model
         }
+        console.log(`Gemini ${model} answered in ${Date.now() - started} ms`)
         try {
           return JSON.parse(text)
         } catch {
@@ -310,7 +344,7 @@ async function askGemini(system: string, past: { role: string; content: string }
       }
       lastError = `${res.status} ${model}: ${(await res.text()).slice(0, 200)}`
       console.error('Gemini error:', lastError)
-      if (res.status === 400 && schema) continue // retry this model without the schema
+      if (res.status === 400 && fast) continue // retry this model without the extra settings
       break // 404 (model gone), 429 (limit), 5xx (busy): try the next model
     }
   }
