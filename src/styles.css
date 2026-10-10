@@ -422,3 +422,8 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .story-paused { position: absolute; top: calc(70px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(0, 0, 0, .35); color: #fff; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; z-index: 3; }
 .story-paused { animation: story-pause-in .15s ease .3s both; }
 @keyframes story-pause-in { from { opacity: 0; } to { opacity: 1; } }
+/* No grey press highlight on iPhone over the invisible tap zones */
+.story-viewer, .story-viewer * { -webkit-tap-highlight-color: transparent; }
+.story-nav, .story-nav:active, .story-nav:hover, .story-nav:focus { -webkit-appearance: none; appearance: none; background: transparent; box-shadow: none; }
+.story-nav:focus:not(:focus-visible) { outline: none; }
+.story-dot, .quick-chip, .tab { -webkit-tap-highlight-color: transparent; }
