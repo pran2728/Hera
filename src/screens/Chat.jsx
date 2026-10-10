@@ -105,7 +105,8 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
     const failed = !!error || !!data?.error
     setMessages(m => [...m, {
       id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,
-      failed, detail: data?.detail, retry: failed ? message : undefined, safety: data?.safety_level
+      failed, detail: data?.detail, retry: failed ? message : undefined, safety: data?.safety_level,
+      partnerAlerted: data?.partner_alerted
     }])
     if (data?.cycle) setCycle(data.cycle)
     input.current?.focus()
@@ -161,6 +162,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
               <button className="chip small retry" disabled={thinking} onClick={() => send(null, m.retry)}>Try again</button>
             )}
             {(m.safety === 'distress' || m.safety === 'danger') && <SafetyActions profile={profile} danger={m.safety === 'danger'} />}
+            {m.partnerAlerted && <div className="partner-alerted">💜 I've asked {m.partnerAlerted} to check on you. They don't see what you said.</div>}
             {m.logged?.length > 0 && (
               <div className="logged">
                 {m.logged.map((l, i) => (

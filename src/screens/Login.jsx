@@ -1,11 +1,13 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { Logo } from '../App.jsx'
+import { pendingInvite } from '../lib/partner'
 
 // Email + password login. Chosen over magic links because a link opened
 // from email lands in the browser, not in the installed home-screen app on iPhone.
 export default function Login() {
-  const [mode, setMode] = useState('signin') // 'signin' | 'signup'
+  const invite = pendingInvite()
+  const [mode, setMode] = useState(invite ? 'signup' : 'signin') // 'signin' | 'signup'
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -19,7 +21,8 @@ export default function Login() {
       if (mode === 'signup') {
         const { data, error } = await supabase.auth.signUp({
           email, password,
-          options: { emailRedirectTo: window.location.origin }
+          // Keep the invite in the confirmation link, in case it opens in another browser.
+          options: { emailRedirectTo: window.location.origin + (invite ? `/?invite=${invite}` : '') }
         })
         if (error) throw error
         if (!data.session) {
@@ -50,6 +53,12 @@ export default function Login() {
       <Logo size={72} />
       <h1 className="brand">Hera</h1>
       <p className="tagline">Your cycle companion. Just talk to her.</p>
+      {invite && (
+        <p className="invite-banner">
+          💜 <strong>You've been invited as a partner.</strong> Create an account (or sign in) to get a heads-up before
+          her period and tips on how to support her. You'll never see her chats.
+        </p>
+      )}
 
       <form className="card" onSubmit={submit}>
         <h2>{mode === 'signin' ? 'Welcome back' : 'Create your account'}</h2>

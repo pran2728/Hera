@@ -54,3 +54,41 @@ assert.doesNotMatch(nudgeText('period_check', { ...base, tone: 'facts' }, cyc), 
 assert.match(nudgeText('weekly_checkin', base, computeCycle(base, starts, '2026-10-22')), /PMS/)
 assert.ok(nudgeText('daily_tip', { ...base, tone: 'facts' }, computeCycle(base, starts, '2026-10-01'), '2026-10-01').length > 10)
 console.log('all nudge tests passed')
+
+// ---------- Partner mode ----------
+{
+  const { duePartnerNudge, partnerView, partnerText, partnerPhase } = await import('../src/lib/nudges.js')
+  const her = { ...base, name: 'Pran Josyula' }
+  const link = { partner_id: 'p1', notify_heads_up: true, notify_tips: true, notify_crisis: true }
+  // Not accepted yet: nothing
+  assert.equal(duePartnerNudge(her, { ...link, partner_id: null }, starts, [], at('2026-10-24')), null)
+  // Heads-up 2 days before her period, with her first name
+  const hu = duePartnerNudge(her, link, starts, [], at('2026-10-24'))
+  assert.equal(hu.kind, 'partner_heads_up')
+  assert.match(hu.text, /^Heads-up: Pran's period/)
+  // Respects her switch, her quiet hours, her reminder time and her pause
+  assert.equal(duePartnerNudge(her, { ...link, notify_heads_up: false }, starts, [], at('2026-10-24')), null)
+  assert.equal(duePartnerNudge(her, link, starts, [], at('2026-10-24', '23:00')), null)
+  assert.equal(duePartnerNudge(her, link, starts, [], at('2026-10-24', '08:30')), null)
+  assert.equal(duePartnerNudge({ ...her, paused_until: '2026-12-01T00:00:00Z' }, link, starts, [], at('2026-10-24')), null)
+  // Weekly tip on her check-in day, once
+  assert.equal(duePartnerNudge(her, link, starts, [], at('2026-10-04')).kind, 'partner_tip')
+  assert.equal(duePartnerNudge(her, link, starts, [{ kind: 'partner_tip', for_date: '2026-10-04' }], at('2026-10-04')), null)
+  assert.equal(duePartnerNudge(her, { ...link, notify_tips: false }, starts, [], at('2026-10-04')), null)
+  // Never a heads-up when she's late (that's private), and no phase shown
+  const lateCycle = computeCycle(her, starts, '2026-11-10')
+  assert.equal(lateCycle.phase, 'late')
+  assert.equal(partnerPhase(lateCycle), null)
+  assert.equal(partnerView(her, lateCycle, '2026-11-10').phase_label, null)
+  // Pregnant / hormonal contraception: partner sees no phase, tips stay general
+  assert.equal(partnerView({ ...her, life_stage: 'pregnant' }, computeCycle({ ...her, life_stage: 'pregnant' }, starts, '2026-10-04'), '2026-10-04').phase, null)
+  assert.match(partnerText('partner_tip', her, { mode: 'pregnant' }, '2026-10-04'), /^This week with Pran: /)
+  // PMS days get their own wording; tips never mention logs or symptoms she reported
+  const pms = computeCycle(her, starts, '2026-10-22')
+  assert.equal(partnerPhase(pms), 'pms')
+  assert.equal(partnerView(her, pms, '2026-10-22').phase_label, 'PMS days')
+  assert.match(partnerText('partner_crisis', her, pms, '2026-10-22'), /Pran is having a really hard time/)
+  // Partner gets at most 2 a day
+  assert.equal(duePartnerNudge(her, link, starts, [{ kind: 'a', for_date: '2026-10-04' }, { kind: 'b', for_date: '2026-10-04' }], at('2026-10-04')), null)
+  console.log('partner nudges: ok')
+}

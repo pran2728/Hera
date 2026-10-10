@@ -4,6 +4,9 @@ import Login from './screens/Login.jsx'
 import Onboarding from './screens/Onboarding.jsx'
 import Chat from './screens/Chat.jsx'
 import SetupNeeded from './screens/SetupNeeded.jsx'
+import JoinPartner from './screens/JoinPartner.jsx'
+import PartnerHome from './screens/PartnerHome.jsx'
+import { pendingInvite, clearInvite } from './lib/partner'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = still checking
@@ -26,10 +29,18 @@ function SignedIn({ session }) {
   const [dbMissing, setDbMissing] = useState(false)
   const [offline, setOffline] = useState(null)
   const [attempt, setAttempt] = useState(0)
+  const [invite, setInvite] = useState(() => pendingInvite())
+  const [isPartner, setIsPartner] = useState(undefined)
+  const [ownCycle, setOwnCycle] = useState(false) // a partner chose to use Hera for herself too
   const userId = session.user.id
 
   useEffect(() => {
+    if (invite) return
     setOffline(null)
+    // Is this account someone's partner? (Ignored if the partner update isn't in the database yet.)
+    setIsPartner(undefined)
+    supabase.from('partner_links').select('id').eq('partner_id', userId).maybeSingle()
+      .then(({ data }) => setIsPartner(!!data), () => setIsPartner(false))
     withRetry(() => supabase.from('profiles').select('*').eq('id', userId).maybeSingle()).then(async ({ data, error }) => {
       if (error) {
         // The tables don't exist yet: database.sql hasn't been run in Supabase.
@@ -45,11 +56,18 @@ function SignedIn({ session }) {
         supabase.from('profiles').update({ timezone: tz }).eq('id', userId).then(() => {})
       }
     })
-  }, [userId, attempt])
+  }, [userId, attempt, invite])
 
+  if (invite) {
+    const done = () => { clearInvite(); setInvite(null) }
+    return <JoinPartner code={invite} onJoined={done} onSkip={done} />
+  }
   if (dbMissing) return <DatabaseMissing />
   if (offline) return <CantConnect details={offline} onRetry={() => setAttempt(a => a + 1)} />
-  if (profile === undefined) return <Splash />
+  if (profile === undefined || (isPartner === undefined && !profile?.onboarded_at)) return <Splash />
+  if (!profile?.onboarded_at && isPartner && !ownCycle) {
+    return <PartnerHome session={session} onUseForMe={() => setOwnCycle(true)} />
+  }
   if (!profile?.onboarded_at) return <Onboarding session={session} onDone={setProfile} />
   return <Chat session={session} profile={profile} onProfileChange={setProfile}
                onDeleted={() => setProfile(null)} />

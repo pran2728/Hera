@@ -135,4 +135,127 @@ export function nudgeText(kind, p, cycle, today = '2026-01-01') {
   return ''
 }
 
+// ---------- Partner mode ----------
+// The partner only ever learns: her phase (when she has natural phases), a period heads-up,
+// a tip on how to support her, and (if she allows it) that she's having a hard time.
+// Never her chats, logs, symptoms, a late period, pregnancy or anything she said.
+
+export const PARTNER_DAILY_CAP = 2
+
+export const PARTNER_PHASES = {
+  menstrual: { label: 'Period week', about: 'Her energy is usually at its lowest. Cramps and tiredness are common.' },
+  follicular: { label: 'Rising energy', about: 'Energy and mood usually pick up this week.' },
+  ovulatory: { label: 'Peak energy', about: 'Usually her most energetic, social days of the month.' },
+  luteal: { label: 'Slowing down', about: 'She may feel more tired, hungry or sensitive than usual.' },
+  pms: { label: 'PMS days', about: 'Mood can dip and her body may feel heavy. Patience goes a long way.' }
+}
+
+const PARTNER_TIPS = {
+  menstrual: [
+    'Offer a hot water bag and something warm to eat, like dal khichdi or ginger tea.',
+    'Take one chore off her plate today without being asked.',
+    'Ask "what would help right now?" instead of guessing.'
+  ],
+  follicular: [
+    'Good week to plan something together: a walk, a new café, a movie night.',
+    'She may be up for trying new things. Suggest that plan you keep postponing.',
+    'Cheer on whatever she is starting this week.'
+  ],
+  ovulatory: [
+    'Make plans. This is usually her most social, confident stretch.',
+    'A sincere compliment lands well this week.',
+    'Join her for a workout or a long walk if she is up for it.'
+  ],
+  luteal: [
+    'Keep plans low-key and be a little more patient than usual.',
+    'Stock her comfort snacks, and maybe some dark chocolate or bananas.',
+    'If she is quieter than usual, a simple "I am here" helps more than fixing things.'
+  ],
+  pms: [
+    "Don't take mood swings personally. Listen more than you talk today.",
+    'A hot water bag, a cosy night in and her favourite food go a long way.',
+    'Check in with a short, kind message during the day.'
+  ],
+  general: [
+    'Ask her how she is really doing today, and listen.',
+    'Small things count: water, a snack, a hug, a chore done without asking.',
+    'Plan a calm evening together this week.'
+  ]
+}
+
+// Which bucket of partner tips applies. Anything private (late period, pregnancy,
+// menopause, contraception) falls back to 'general' so the partner learns nothing from it.
+export function partnerPhase(cycle) {
+  if (cycle?.mode !== 'cycle' || !cycle.phase || cycle.phase === 'late') return null
+  if (cycle.lateLuteal) return 'pms'
+  return cycle.phase
+}
+
+function firstName(p) {
+  return (p?.name || '').trim().split(/\s+/)[0] || 'your partner'
+}
+
+function pickFor(list, today) {
+  return list[Math.abs(daysBetween('2026-01-01', today)) % list.length]
+}
+
+// What the partner screen shows.
+export function partnerView(her, cycle, today) {
+  const key = partnerPhase(cycle)
+  const ph = key ? PARTNER_PHASES[key] : null
+  return {
+    her_name: firstName(her),
+    phase: key,
+    phase_label: ph?.label ?? null,
+    about: ph?.about ?? null,
+    tip: pickFor(PARTNER_TIPS[key ?? 'general'], today)
+  }
+}
+
+export function partnerText(kind, her, cycle, today) {
+  const name = firstName(her)
+  if (kind === 'partner_heads_up') {
+    return `Heads-up: ${name}'s period may start in the next couple of days. A hot water bag, her comfort snacks and a little extra patience go a long way 💜`
+  }
+  if (kind === 'partner_tip') {
+    const key = partnerPhase(cycle)
+    const lead = key ? `${name}'s week: ${PARTNER_PHASES[key].label.toLowerCase()}. ` : `This week with ${name}: `
+    return lead + pickFor(PARTNER_TIPS[key ?? 'general'], today)
+  }
+  if (kind === 'partner_crisis') {
+    return `${name} is having a really hard time right now. Please check on her: call her, or be with her if you can 💜`
+  }
+  return ''
+}
+
+/**
+ * Decide the one partner nudge to send now, or null.
+ * Timing follows HER settings (timezone, reminder time, quiet hours, pause).
+ * @param her    her profile row
+ * @param link   partner_links row
+ * @param starts her period start dates
+ * @param sent   [{kind, for_date}] already sent to the partner recently
+ */
+export function duePartnerNudge(her, link, starts, sent, now) {
+  if (!link?.partner_id) return null
+  const clock = localClock(now, her.timezone || 'Asia/Kolkata')
+  const today = clock.date
+  if (her.paused_until && new Date(her.paused_until) > now) return null
+  if (inQuietHours(clock.minutes, toMinutes(her.quiet_start, 22 * 60), toMinutes(her.quiet_end, 8 * 60))) return null
+  if (clock.minutes < toMinutes(her.nudge_time, 9 * 60)) return null
+
+  const sentToday = sent.filter(s => s.for_date === today)
+  if (sentToday.filter(s => s.kind !== 'partner_crisis').length >= PARTNER_DAILY_CAP) return null
+
+  const cycle = computeCycle(her, starts, today)
+  const candidates = []
+  if (link.notify_heads_up && cycle.mode === 'cycle' && cycle.phase !== 'late' &&
+      daysBetween(today, cycle.nextPeriod.expected) === 2) candidates.push('partner_heads_up')
+  if (link.notify_tips && clock.weekday === (her.checkin_day ?? 0)) candidates.push('partner_tip')
+
+  const kind = candidates.find(k => !sentToday.some(s => s.kind === k))
+  if (!kind) return null
+  return { kind, for_date: today, text: partnerText(kind, her, cycle, today) }
+}
+
 export { WEEKDAY_NAMES }

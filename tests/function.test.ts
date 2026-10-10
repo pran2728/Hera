@@ -24,8 +24,13 @@ globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     if (aiStatus !== 200) return new Response('rate', { status: aiStatus })
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(nextAI) }] } }] }))
   }
+  if (String(url) === 'http://x/functions/v1/hera-nudge') {
+    partnerCalls.push({ auth: (init?.headers as Record<string, string>).Authorization, body: JSON.parse(String(init?.body)) })
+    return new Response(JSON.stringify({ alerted: true, partner_name: 'Arjun' }))
+  }
   return realFetch(url, init)
 }) as typeof fetch
+const partnerCalls: any[] = []
 
 await import('../backend/hera-chat.ts')
 const call = (body: unknown, auth = 'Bearer good') => realFetch('http://localhost:8000', {
@@ -81,6 +86,10 @@ Deno.test('full flow', async (t) => {
     nextAI = { reply: "I'm really glad you told me.", logs: [], safety_level: 'danger' }
     const r = await call({ message: 'i dont see the point anymore', today: '2026-09-28' })
     assert(r.json.reply.includes('14416'))
+    // Her partner is asked to check on her, as her, without what she said
+    assertEquals(r.json.partner_alerted, 'Arjun')
+    assertEquals(partnerCalls.length, 1)
+    assertEquals(partnerCalls[0].body, { action: 'crisis' })
   })
 
   await t.step('status action', async () => {

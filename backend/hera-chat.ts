@@ -248,12 +248,37 @@ Deno.serve(async (req) => {
     }
 
     await supabase.from('messages').insert({ user_id: userId, role: 'hera', content: reply })
-    return json({ reply, logged, cycle, safety_level: result.safety_level ?? 'none' })
+
+    // ---- If she has a partner with crisis alerts on, ask them to check on her ----
+    let partner_alerted: string | null = null
+    if (result.safety_level === 'distress' || result.safety_level === 'danger') {
+      partner_alerted = await alertPartner(authHeader, apikey)
+    }
+    return json({ reply, logged, cycle, safety_level: result.safety_level ?? 'none', partner_alerted })
   } catch (e) {
     console.error('hera-chat failed:', e)
     return json({ error: 'server_error' }, 500)
   }
 })
+
+// ================= Partner crisis alert =================
+// hera-nudge holds the notification keys, so we ask it (as her) to alert her partner.
+// Returns the partner's name when a notification went out, otherwise null. Never blocks the reply for long.
+async function alertPartner(authHeader: string, apikey: string): Promise<string | null> {
+  try {
+    const res = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/hera-nudge`, {
+      method: 'POST',
+      headers: { Authorization: authHeader, apikey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'crisis' }),
+      signal: AbortSignal.timeout(8000)
+    })
+    const data = await res.json().catch(() => ({}))
+    return data?.alerted ? (data.partner_name || 'your partner') : null
+  } catch (e) {
+    console.error('partner alert failed:', String(e))
+    return null
+  }
+}
 
 // ================= Logging =================
 

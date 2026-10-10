@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS } from '../lib/options'
 import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
+import PartnerSettings from './PartnerSettings.jsx'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 
@@ -99,6 +100,7 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
     if (!confirm('Delete all your chats, logs and profile from Hera? This cannot be undone.')) return
     if (!confirm('Are you sure? Everything Hera knows about you will be erased.')) return
     const id = session.user.id
+    await supabase.from('partner_links').delete().eq('owner_id', id) // her partner stops getting nudges
     for (const table of ['messages', 'cycle_logs']) {
       const { error } = await supabase.from(table).delete().eq('user_id', id)
       if (error) { setError(error.message); return }
@@ -201,6 +203,11 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
               <input type="tel" inputMode="tel" value={f.trusted_phone} onChange={e => set('trusted_phone', e.target.value)} placeholder="98xxxxxxxx" maxLength={16} />
             </Field>
           </div>
+        </section>
+
+        <section className="card">
+          <h2>Partner</h2>
+          <PartnerSettings profile={profile} />
         </section>
 
         <section className="card">

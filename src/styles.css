@@ -262,3 +262,18 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .cycle-page { overflow-x: hidden; }
 .two { align-items: end; }
 .stack { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---- Partner mode ---- */
+.partner-badge { margin-left: auto; font-size: .8rem; font-weight: 800; color: var(--plum); background: var(--hera-bubble); padding: 4px 10px; border-radius: 999px; }
+.partner-hero .eyebrow { margin: 0; font-size: .8rem; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.partner-hero .phase { align-self: flex-start; font-size: 1rem; padding: 6px 14px; }
+.partner-tip { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: 1.2rem; line-height: 1.4; color: var(--ink); }
+.nudge-list { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: .92rem; }
+.nudge-list li.off { color: var(--muted); text-decoration: line-through; }
+.privacy-note { align-self: center; text-align: center; padding: 0 8px; }
+.invite-box { padding: 10px 12px; border-radius: 12px; border: 1px dashed var(--plum); background: var(--cream); font-size: .85rem; word-break: break-all; color: var(--ink); }
+.btn-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.btn-row .chip { text-decoration: none; display: inline-flex; align-items: center; }
+.connected { margin: 0; font-size: 1rem; }
+.partner-alerted { margin-top: 8px; font-size: .85rem; font-weight: 700; color: var(--plum); }
+.invite-banner { max-width: 380px; margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; background: var(--hera-bubble); text-align: left; line-height: 1.45; font-size: .92rem; }

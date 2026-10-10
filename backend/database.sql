@@ -130,3 +130,66 @@ revoke all on public.hera_settings from authenticated;
 -- 6. Hera's server functions (background reminders) need full access.
 grant select, insert, update, delete on public.profiles, public.messages, public.cycle_logs,
   public.push_subscriptions, public.nudges_sent, public.hera_settings to service_role;
+
+-- ================= Milestone 3: Partner mode (safe to re-run) =================
+-- She invites one partner with a link. The partner gets gentle nudges (period heads-up,
+-- weekly tip, a crisis alert if she turns it on) and NEVER sees her chats, logs or profile.
+create table if not exists public.partner_links (
+  id               bigint generated always as identity primary key,
+  owner_id         uuid not null unique default auth.uid() references auth.users(id) on delete cascade,
+  invite_code      text not null unique check (length(invite_code) >= 10),
+  partner_id       uuid unique references auth.users(id) on delete cascade,
+  partner_name     text,
+  notify_heads_up  boolean not null default true,
+  notify_tips      boolean not null default true,
+  notify_crisis    boolean not null default true,
+  created_at       timestamptz default now(),
+  accepted_at      timestamptz
+);
+alter table public.partner_links enable row level security;
+
+drop policy if exists "owner manages link" on public.partner_links;
+create policy "owner manages link" on public.partner_links
+  for all to authenticated using (owner_id = auth.uid()) with check (owner_id = auth.uid());
+drop policy if exists "partner sees link" on public.partner_links;
+create policy "partner sees link" on public.partner_links
+  for select to authenticated using (partner_id = auth.uid());
+drop policy if exists "partner can leave" on public.partner_links;
+create policy "partner can leave" on public.partner_links
+  for delete to authenticated using (partner_id = auth.uid());
+
+-- She can create an invite and switch nudges on/off. Nobody can write partner_id directly:
+-- that only happens through accept_partner_invite below.
+revoke all on public.partner_links from anon, authenticated;
+grant select, delete on public.partner_links to authenticated;
+grant insert (invite_code) on public.partner_links to authenticated;
+grant update (notify_heads_up, notify_tips, notify_crisis) on public.partner_links to authenticated;
+grant select, insert, update, delete on public.partner_links to service_role;
+
+-- The partner opens the invite link, signs in, and this connects them.
+create or replace function public.accept_partner_invite(code text, display_name text)
+returns text language plpgsql security definer set search_path = public as $$
+declare
+  link public.partner_links;
+  her  text;
+begin
+  if auth.uid() is null then raise exception 'not_signed_in'; end if;
+  select * into link from public.partner_links where invite_code = code for update;
+  if not found then raise exception 'invite_not_found'; end if;
+  if link.owner_id = auth.uid() then raise exception 'own_invite'; end if;
+  if link.partner_id is not null and link.partner_id <> auth.uid() then raise exception 'invite_used'; end if;
+  if link.partner_id is null and link.created_at < now() - interval '7 days' then raise exception 'invite_expired'; end if;
+  if exists (select 1 from public.partner_links where partner_id = auth.uid() and id <> link.id) then
+    raise exception 'already_partner';
+  end if;
+  update public.partner_links
+     set partner_id = auth.uid(),
+         partner_name = left(nullif(trim(display_name), ''), 40),
+         accepted_at = coalesce(accepted_at, now())
+   where id = link.id;
+  select split_part(coalesce(nullif(trim(name), ''), 'your partner'), ' ', 1) into her
+    from public.profiles where id = link.owner_id;
+  return coalesce(her, 'your partner');
+end $$;
+revoke all on function public.accept_partner_invite(text, text) from public, anon;
+grant execute on function public.accept_partner_invite(text, text) to authenticated;
