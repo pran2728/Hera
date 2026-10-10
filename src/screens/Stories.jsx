@@ -47,7 +47,7 @@ export function StoryViewer({ stories, start, today, onClose, onAnswer }) {
   const [progress, setProgress] = useState(0)
   const [paused, setPaused] = useState(false)
   const [answered, setAnswered] = useState(null)
-  const startY = useRef(null)
+  const press = useRef(null) // { x, y, t } of the current touch
   const done = useRef(0) // progress of the current card, kept across pauses
   const s = stories[i]
 
@@ -82,8 +82,22 @@ export function StoryViewer({ stories, start, today, onClose, onAnswer }) {
 
   return (
     <div className={`story-viewer bg-${s.bg}`} role="dialog" aria-modal="true" aria-label={`${s.label}, story ${i + 1} of ${stories.length}`}
-         onPointerDown={e => { startY.current = e.clientY; if (!e.target.closest('button')) setPaused(true) }}
-         onPointerUp={e => { setPaused(false); if (startY.current !== null && e.clientY - startY.current > 90) onClose(); startY.current = null }}>
+         onPointerDown={e => {
+           if (e.target.closest('.story-close, .story-option')) return
+           press.current = { x: e.clientX, y: e.clientY, t: Date.now() }
+           setPaused(true) // hold anywhere to pause
+         }}
+         onPointerUp={e => {
+           const p = press.current; press.current = null
+           setPaused(false)
+           if (!p) return
+           if (e.clientY - p.y > 90) return onClose() // swipe down
+           if (Date.now() - p.t > 300) return // that was a hold: just resume
+           if (s.options) return // the check-in card waits for an answer
+           if (p.x < window.innerWidth * 0.35) prev(); else next() // a quick tap
+         }}
+         onPointerCancel={() => { press.current = null; setPaused(false) }}
+         onContextMenu={e => e.preventDefault()}>
       <div className="story-bars" aria-hidden="true">
         {stories.map((_, k) => <span key={k}><i style={{ width: `${k < i ? 100 : k === i ? progress * 100 : 0}%` }} /></span>)}
       </div>
@@ -106,8 +120,10 @@ export function StoryViewer({ stories, start, today, onClose, onAnswer }) {
         )}
       </div>
 
-      <button type="button" className="story-nav prev" onClick={prev} aria-label="Previous story" />
-      <button type="button" className="story-nav next" onClick={next} aria-label="Next story" />
+      {/* For keyboards and screen readers; taps are handled above so a hold can pause. */}
+      <button type="button" className="story-nav prev" onClick={e => { if (e.detail === 0) prev() }} aria-label="Previous story" />
+      <button type="button" className="story-nav next" onClick={e => { if (e.detail === 0) next() }} aria-label="Next story" />
+      {paused && <span className="story-paused" aria-hidden="true">Paused</span>}
       <div className="story-foot"><span>Hera</span><span>{i + 1} / {stories.length}</span></div>
     </div>
   )

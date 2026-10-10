@@ -418,3 +418,7 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .story-foot { display: flex; justify-content: space-between; font-weight: 800; font-size: .85rem; opacity: .8; position: relative; z-index: 2; }
 .today > * { flex-shrink: 0; }
 .story-dot:focus { outline: none; } .story-dot:focus-visible .story-ring { outline: 2px solid var(--plum); outline-offset: 2px; }
+.story-viewer { -webkit-touch-callout: none; }
+.story-paused { position: absolute; top: calc(70px + env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); padding: 4px 12px; border-radius: 999px; background: rgba(0, 0, 0, .35); color: #fff; font-size: .75rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; z-index: 3; }
+.story-paused { animation: story-pause-in .15s ease .3s both; }
+@keyframes story-pause-in { from { opacity: 0; } to { opacity: 1; } }
