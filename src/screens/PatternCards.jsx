@@ -1,6 +1,7 @@
 // "Your patterns" (trends + 90-day stats) and the podcast pick, on the My cycle screen.
 import { cycleTrends, symptomStats } from '../lib/stats'
 import { podcastFor } from '../lib/podcasts'
+import { daysBetween } from '../lib/cycle'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
@@ -13,14 +14,15 @@ function trendWords(t, kind) {
 }
 
 // One series, so one colour and no legend; every bar is labelled with its value.
-function CycleBars({ cycles }) {
-  const data = cycles.slice(-6)
+// The last bar can be the cycle she's in now (dashed, "so far"), since its length isn't known until the next period.
+function CycleBars({ cycles, current }) {
+  const data = [...cycles.slice(current ? -5 : -6), ...(current ? [{ ...current, now: true }] : [])]
   const W = 300, H = 120, base = 96, top = 18, gap = 10
   const max = Math.max(...data.map(c => c.length), 35)
   const bw = (W - gap * (data.length - 1)) / data.length
   return (
     <svg className="bars" viewBox={`0 0 ${W} ${H}`} role="img"
-         aria-label={`Cycle lengths: ${data.map(c => `${c.length} days`).join(', ')}`}>
+         aria-label={`Cycle lengths: ${data.map(c => c.now ? `current cycle ${c.length} days so far` : `${c.length} days`).join(', ')}`}>
       <line x1="0" x2={W} y1={base} y2={base} className="bars-base" />
       {data.map((c, i) => {
         const h = Math.max(4, ((base - top) * c.length) / max)
@@ -28,10 +30,11 @@ function CycleBars({ cycles }) {
         const m = MON[Number(c.start.slice(5, 7)) - 1]
         return (
           <g key={c.start}>
-            <title>{`Cycle from ${Number(c.start.slice(8))} ${m}: ${c.length} days`}</title>
-            <path className="bar" d={`M${x},${base} V${y + 4} Q${x},${y} ${x + 4},${y} H${x + bw - 4} Q${x + bw},${y} ${x + bw},${y + 4} V${base} Z`} />
-            <text x={x + bw / 2} y={y - 5} textAnchor="middle" className="bar-val">{c.length}</text>
-            <text x={x + bw / 2} y={base + 16} textAnchor="middle" className="bar-lbl">{m}</text>
+            <title>{`Cycle from ${Number(c.start.slice(8))} ${m}: ${c.length} days${c.now ? ' so far' : ''}`}</title>
+            <path className={c.now ? 'bar now' : 'bar'} d={`M${x},${base} V${y + 4} Q${x},${y} ${x + 4},${y} H${x + bw - 4} Q${x + bw},${y} ${x + bw},${y + 4} V${base} Z`} />
+            <text x={x + bw / 2} y={y - 5} textAnchor="middle" className="bar-val">{c.now ? `${c.length}…` : c.length}</text>
+            {/* The day it started, so two cycles in one month (1 Aug, 29 Aug) never look like a repeat. */}
+            <text x={x + bw / 2} y={base + 16} textAnchor="middle" className="bar-lbl">{`${Number(c.start.slice(8))} ${m}`}</text>
           </g>
         )
       })}
@@ -44,6 +47,10 @@ export function PatternsCard({ logs, today, showCycle }) {
   const ends = logs.filter(l => l.kind === 'period_end').map(l => l.log_date)
   const t = cycleTrends(starts, ends, logs)
   const s = symptomStats(logs, today)
+  // The cycle she's in now: from her latest start to today (shown only while it's a believable cycle).
+  const latest = [...starts].sort().at(-1)
+  const sofar = latest ? daysBetween(latest, today) + 1 : 0
+  const current = latest && sofar >= 1 && sofar <= 90 ? { start: latest, length: sofar } : null
   const energy = s.energy.length ? s.energy.map(e => `${e.name} ${e.count}×`).join(' · ') : null
 
   return (
@@ -51,8 +58,9 @@ export function PatternsCard({ logs, today, showCycle }) {
       <h2>Your patterns</h2>
       {showCycle && (t.cycles.length >= 2
         ? <>
-            <p className="muted small">Cycle length, last {Math.min(t.cycles.length, 6)} cycles (days)</p>
-            <CycleBars cycles={t.cycles} />
+            <p className="muted small">Cycle length in days</p>
+            <CycleBars cycles={t.cycles} current={current} />
+            <p className="fine bars-note">Each bar is one cycle, marked with the day it started.{current ? ' The dashed bar is the cycle you’re in now, so far.' : ''}</p>
             <dl className="facts">
               <div><dt>Average cycle</dt><dd>{t.cycleAvg} days<small>{t.cycleRange[0]}–{t.cycleRange[1]} days{t.regular === true ? ' · regular' : t.regular === false ? ' · varies' : ''}{t.cycleTrend ? ` · ${trendWords(t.cycleTrend)}` : ''}</small></dd></div>
               {t.periodAvg && <div><dt>Period length</dt><dd>{t.periodAvg} days<small>{trendWords(t.periodTrend) ?? 'log when it ends to track this'}</small></dd></div>}

@@ -435,3 +435,5 @@ button.log-count { background: none; border: 0; padding: 4px 0; cursor: pointer;
 .log-head h2 { margin: 0; }
 .log-count { font-size: .8rem; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .log-month { margin: 12px 0 2px; font-size: .72rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--kicker); }
+.bars-note { margin: 2px 0 8px; font-size: .72rem; color: var(--muted); text-align: center; }
+.bars .bar.now { fill: none; stroke: var(--plum); stroke-width: 2; stroke-dasharray: 5 4; }
