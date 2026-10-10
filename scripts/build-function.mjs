@@ -21,5 +21,5 @@ function build(name, marker, modules) {
   console.log(`backend/${name}.ts written (${out.split('\n').length} lines)`)
 }
 
-build('hera-chat', '// @@CYCLE_ENGINE@@', ['src/lib/cycle.js'])
-build('hera-nudge', '// @@SHARED@@', ['src/lib/cycle.js', 'src/lib/nudges.js'])
+build('hera-chat', '// @@CYCLE_ENGINE@@', ['src/lib/cycle.js', 'src/lib/stages.js'])
+build('hera-nudge', '// @@SHARED@@', ['src/lib/cycle.js', 'src/lib/stages.js', 'src/lib/nudges.js'])

@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { supabase, withRetry } from '../lib/supabase'
+import { addDays } from '../lib/cycle'
+import { localToday } from '../lib/dates'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS } from '../lib/options'
 import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
 import PartnerSettings from './PartnerSettings.jsx'
@@ -13,6 +15,8 @@ function fromProfile(p) {
     favourite_foods: p.favourite_foods ?? '',
     about_me: p.about_me ?? '',
     life_stage: p.life_stage ?? 'cycles',
+    due_date: p.due_date ?? '',
+    ttc_since: p.ttc_since ?? '',
     cycle_length: p.cycle_length_known ? String(p.cycle_length ?? '') : '',
     period_length: p.period_length ?? 5,
     contraception: p.contraception ?? 'none',
@@ -52,6 +56,8 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
     age !== null && (age < 18 || age > 120) && 'Age must be between 18 and 120.',
     cycleLen !== null && (cycleLen < 15 || cycleLen > 90) && 'Cycle length must be between 15 and 90 days.',
     (Number(f.period_length) < 1 || Number(f.period_length) > 15) && 'Period length must be between 1 and 15 days.',
+    f.life_stage === 'pregnant' && f.due_date && (f.due_date < addDays(localToday(), -21) || f.due_date > addDays(localToday(), 300)) && 'That due date looks off. Check the year?',
+    f.life_stage === 'ttc' && f.ttc_since && f.ttc_since > localToday() && "'Trying since' can't be in the future.",
     f.trusted_phone.trim() && !/^\d{10,15}$/.test(normalisePhone(f.trusted_phone)) && 'That phone number looks incomplete.'
   ].filter(Boolean)
 
@@ -65,6 +71,8 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
       favourite_foods: f.favourite_foods.trim() || null,
       about_me: f.about_me.trim() || null,
       life_stage: f.life_stage,
+      due_date: f.life_stage === 'pregnant' ? (f.due_date || null) : profile.due_date ?? null,
+      ttc_since: f.life_stage === 'ttc' ? (f.ttc_since || localToday()) : profile.ttc_since ?? null,
       cycle_length: cycleLen ?? 28,
       cycle_length_known: cycleLen !== null,
       period_length: Number(f.period_length) || 5,
@@ -146,6 +154,16 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
           <Field label="Life stage">
             <Select value={f.life_stage} onChange={v => set('life_stage', v)} options={LIFE_STAGES} />
           </Field>
+          {f.life_stage === 'pregnant' && (
+            <Field label="Due date" hint="The date your doctor gave you. Hera follows your pregnancy week by week from it.">
+              <input type="date" value={f.due_date} onChange={e => set('due_date', e.target.value)} />
+            </Field>
+          )}
+          {f.life_stage === 'ttc' && (
+            <Field label="Trying since" hint="Roughly is fine. Hera uses it to say when a fertility check makes sense.">
+              <input type="date" value={f.ttc_since} max={localToday()} onChange={e => set('ttc_since', e.target.value)} />
+            </Field>
+          )}
           {periods && (
             <>
               <div className="two">

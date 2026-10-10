@@ -3,11 +3,13 @@ import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { computeCycle, prettyDate, daysBetween, PHASE_LABELS } from '../lib/cycle'
 import { periodDays, predictedDays, monthGrid } from '../lib/calendar'
+import { PregnancyCard, WarningSigns, TtcCard, SymptomsCard, BonesCard, SexDriveCard, ReadMore } from './StageCards.jsx'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
-  mood: 'Mood', energy: 'Energy', symptom: 'Symptom', sleep: 'Sleep', sex_drive: 'Sex drive', note: 'Note'
+  mood: 'Mood', energy: 'Energy', symptom: 'Symptom', sleep: 'Sleep', sex_drive: 'Sex drive', note: 'Note',
+  hot_flash: 'Hot flush', night_sweat: 'Night sweat'
 }
 
 export default function MyCycle({ userId, onBack }) {
@@ -38,7 +40,8 @@ export default function MyCycle({ userId, onBack }) {
       cycle,
       actual: periodDays(allStarts, ends, profile.period_length || 5, today),
       predicted: predictedDays(cycle),
-      showFertile: cycle.mode === 'cycle'
+      showFertile: cycle.mode === 'cycle',
+      showCalendar: !['pregnant', 'menopause'].includes(cycle.mode)
     }
   }, [profile, logs, today])
 
@@ -63,7 +66,7 @@ export default function MyCycle({ userId, onBack }) {
     <div className="app">
       <header className="topbar">
         <button className="link" onClick={onBack} aria-label="Back to chat">← Chat</button>
-        <span className="topbar-title">My cycle</span>
+        <span className="topbar-title">{profile?.life_stage === 'pregnant' ? 'My pregnancy' : profile?.life_stage === 'postmenopause' ? 'My health' : 'My cycle'}</span>
         <span style={{ width: 64 }} />
       </header>
 
@@ -72,9 +75,13 @@ export default function MyCycle({ userId, onBack }) {
         {!view && !error && <div className="bubble hera typing"><span /><span /><span /></div>}
         {view && (
           <>
-            <Summary cycle={view.cycle} today={today} />
+            {view.cycle.mode === 'pregnant'
+              ? <><PregnancyCard cycle={view.cycle} /><WarningSigns /></>
+              : <Summary cycle={view.cycle} today={today} />}
+            {profile.life_stage === 'ttc' && <TtcCard profile={profile} cycle={view.cycle} today={today} />}
+            {['perimenopause', 'postmenopause'].includes(profile.life_stage) && <SymptomsCard logs={logs} today={today} />}
 
-            <section className="card calendar" aria-label="Calendar">
+            {view.showCalendar && <section className="card calendar" aria-label="Calendar">
               <div className="cal-head">
                 <button className="link" onClick={() => shift(-1)} aria-label="Previous month">‹</button>
                 <strong>{MONTHS[month.m]} {month.y}</strong>
@@ -105,7 +112,11 @@ export default function MyCycle({ userId, onBack }) {
                 <span><i className="sw predicted" /> Predicted</span>
                 {view.showFertile && <span><i className="sw fertile" /> Fertile window (estimate)</span>}
               </div>
-            </section>
+            </section>}
+
+            {['perimenopause', 'postmenopause'].includes(profile.life_stage) && <BonesCard diet={profile.diet} />}
+            {view.cycle.mode === 'cycle' && <SexDriveCard profile={profile} logs={logs} />}
+            <ReadMore stage={profile.life_stage} />
 
             <section className="card">
               <h2>What you've told me</h2>
@@ -129,7 +140,6 @@ export default function MyCycle({ userId, onBack }) {
 
 function Summary({ cycle, today }) {
   const message = {
-    pregnant: "You're in pregnancy mode, so I'm not predicting periods. Tell me how you're feeling anytime.",
     menopause: "You're postmenopausal, so there's no cycle to predict. Any bleeding now is worth checking with a doctor.",
     no_phases: `You're on ${cycle.reason}, so there are no natural phases to predict. I'll track bleeding and symptoms.`,
     unknown: 'Tell Hera when your last period started and your calendar will fill in.'

@@ -55,7 +55,7 @@ export function computeCycle(profile = {}, starts = [], today) {
   const stage = profile.life_stage || 'cycles'
   const conditions = profile.conditions || []
 
-  if (stage === 'pregnant') return { mode: 'pregnant' }
+  if (stage === 'pregnant') return { mode: 'pregnant', pregnancy: pregnancyWeek(profile, today) }
   if (stage === 'postmenopause') return { mode: 'menopause' }
   if (NO_PHASE_CONTRACEPTION[profile.contraception]) {
     return { mode: 'no_phases', reason: NO_PHASE_CONTRACEPTION[profile.contraception] }
@@ -125,11 +125,31 @@ export function computeCycle(profile = {}, starts = [], today) {
   return result
 }
 
+// How far along she is, from her due date (or her last period + 280 days if she has no due date yet).
+export function pregnancyWeek(profile = {}, today) {
+  let due = profile.due_date
+  let estimated = false
+  if (!due && profile.last_period_start) { due = addDays(profile.last_period_start, 280); estimated = true }
+  if (!due || !today) return null
+  const toGo = daysBetween(today, due)
+  const along = 280 - toGo
+  if (along < 0 || along > 300) return null
+  return {
+    due, estimated, toGo,
+    week: Math.floor(along / 7), day: along % 7,
+    trimester: along < 14 * 7 ? 1 : along < 28 * 7 ? 2 : 3
+  }
+}
+
 // One plain-English paragraph for Hera's prompt and for debugging.
 export function describeCycle(c) {
   switch (c.mode) {
-    case 'pregnant':
-      return 'She is pregnant. Do not predict periods or phases.'
+    case 'pregnant': {
+      const w = c.pregnancy
+      if (!w) return 'She is pregnant (due date unknown: ask her gently for it). Do not predict periods or phases.'
+      return `She is pregnant: ${w.week} weeks ${w.day} days (trimester ${w.trimester}), due ${prettyDate(w.due)}` +
+        `${w.estimated ? ' (estimated from her last period; ask her for the due date her doctor gave)' : ''}. Do not predict periods or phases.`
+    }
     case 'menopause':
       return 'She is postmenopausal. No cycle predictions. Any vaginal bleeding now is a red flag for a doctor visit.'
     case 'no_phases':

@@ -193,3 +193,12 @@ begin
 end $$;
 revoke all on function public.accept_partner_invite(text, text) from public, anon;
 grant execute on function public.accept_partner_invite(text, text) to authenticated;
+
+-- ================= Milestone 4: Life-stage modes (safe to re-run) =================
+alter table public.profiles add column if not exists due_date date;   -- pregnancy mode
+alter table public.profiles add column if not exists ttc_since date;  -- trying-to-conceive mode
+
+-- Hot flushes and night sweats get their own log kinds, so Hera can count them.
+alter table public.cycle_logs drop constraint if exists cycle_logs_kind_check;
+alter table public.cycle_logs add constraint cycle_logs_kind_check check (kind in
+  ('period_start','period_end','flow','pain','mood','energy','symptom','sleep','sex_drive','note','hot_flash','night_sweat'));

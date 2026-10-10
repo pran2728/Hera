@@ -115,6 +115,50 @@ Deno.test('full flow', async (t) => {
     assertEquals(db.profiles[0].name, 'Pran')
   })
 
+  await t.step('switches to trying-to-conceive from chat', async () => {
+    nextAI = { reply: 'Ooh exciting! Switched you to trying-to-conceive mode 💜', logs: [], safety_level: 'none', profile_updates: { life_stage: 'ttc' } }
+    const r = await call({ message: "we're trying for a baby now!", today: '2026-09-28' })
+    assertEquals(r.json.profile_changes, { life_stage: 'ttc', ttc_since: '2026-09-28' })
+    assertEquals(db.profiles[0].life_stage, 'ttc')
+    // next prompt knows the mode, and lists only trusted links
+    nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
+    await call({ message: 'when am I fertile?', today: '2026-09-28' })
+    const sys = lastAIBody.systemInstruction.parts[0].text
+    assert(sys.includes('Life stage: trying-to-conceive mode'), 'mode in prompt')
+    assert(sys.includes('Trying to conceive for about 0 months. Estimated fertile window'), 'ttc details')
+    assert(sys.includes('https://www.nhs.uk/pregnancy/trying-for-a-baby/'), 'sources listed')
+  })
+
+  await t.step('pregnant with a due date: week in the reply data and prompt', async () => {
+    nextAI = { reply: 'Congratulations!!', logs: [], safety_level: 'none', profile_updates: { life_stage: 'pregnant', due_date: '2027-05-20' } }
+    const r = await call({ message: 'I got a positive test! due 20 May', today: '2026-09-28' })
+    assertEquals(r.json.profile_changes, { life_stage: 'pregnant', due_date: '2027-05-20' })
+    assertEquals(r.json.cycle.mode, 'pregnant'); assertEquals(r.json.cycle.pregnancy.week, 6)
+    nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
+    await call({ message: 'what should I eat', today: '2026-09-28' })
+    const sys = lastAIBody.systemInstruction.parts[0].text
+    assert(sys.includes('She is pregnant: 6 weeks'), 'week in prompt')
+    assert(sys.includes('Baby is about the size of a masoor dal grain'), 'size in prompt')
+  })
+
+  await t.step('ignores odd changes from the AI', async () => {
+    nextAI = { reply: 'ok', logs: [], safety_level: 'none', profile_updates: { life_stage: 'alien', due_date: '2031-01-01', trying_since: 'last year' } }
+    const r = await call({ message: 'hmm', today: '2026-09-28' })
+    assertEquals(r.json.profile_changes, {})
+    assertEquals(db.profiles[0].life_stage, 'pregnant'); assertEquals(db.profiles[0].due_date, '2027-05-20')
+  })
+
+  await t.step('logs hot flushes and night sweats', async () => {
+    db.profiles[0].life_stage = 'perimenopause'
+    nextAI = { reply: 'Noted', logs: [{ kind: 'hot_flash', date: '2026-09-28', value: '3 times' }, { kind: 'night_sweat', date: '2026-09-27' }], safety_level: 'none' }
+    const r = await call({ message: 'had 3 hot flushes today and night sweats last night', today: '2026-09-28' })
+    assertEquals(r.json.logged.map((l: any) => l.kind), ['hot_flash', 'night_sweat'])
+    nextAI = { reply: 'ok', logs: [], safety_level: 'none' }
+    await call({ message: 'hi', today: '2026-09-28' })
+    assert(lastAIBody.systemInstruction.parts[0].text.includes('hot flushes on 1 days; night sweats on 1 days'), 'symptoms in prompt')
+    db.profiles[0].life_stage = 'cycles'
+  })
+
   await t.step('busy model falls back to the next one', async () => {
     busyModels = ['gemini-flash-latest', 'gemini-flash-lite-latest', 'gemini-4.0-flash']; modelsTried.length = 0
     nextAI = { reply: 'Hey babe, I got you', logs: [], safety_level: 'none' }

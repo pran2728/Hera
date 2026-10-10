@@ -3,7 +3,7 @@ import { supabase, withRetry, isNetworkError, diagnose } from '../lib/supabase'
 import { extractName } from '../lib/name'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES } from '../lib/options'
 import { localToday } from '../lib/dates'
-import { prettyDate } from '../lib/cycle'
+import { prettyDate, addDays } from '../lib/cycle'
 import { Logo } from '../App.jsx'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
@@ -26,6 +26,18 @@ const STEPS = [
     input: {
       type: 'chips', options: LIFE_STAGES
     }
+  },
+  {
+    key: 'due_date',
+    skip: a => a.life_stage !== 'pregnant',
+    ask: () => "Congratulations, that's huge 💜 When's your due date? I'll follow along week by week.",
+    input: { type: 'date', future: true, skipLabel: 'Not sure yet' }
+  },
+  {
+    key: 'ttc_months',
+    skip: a => a.life_stage !== 'ttc',
+    ask: () => 'Exciting! How long have you been trying?',
+    input: { type: 'chips', options: [['0', 'Just started'], ['3', 'A few months'], ['9', '6–12 months'], ['14', 'Over a year']] }
   },
   {
     key: 'last_period_start',
@@ -158,6 +170,8 @@ export default function Onboarding({ session, onDone }) {
       name: a.name?.trim() || null,
       life_stage: a.life_stage,
       last_period_start: a.last_period_start || null,
+      due_date: a.life_stage === 'pregnant' ? (a.due_date || null) : null,
+      ttc_since: a.life_stage === 'ttc' ? addDays(localToday(), -Math.round(Number(a.ttc_months || 0) * 30.4)) : null,
       cycle_length: a.cycle_length ? Number(a.cycle_length) : 28,
       cycle_length_known: Boolean(a.cycle_length),
       period_length: a.period_length ? Number(a.period_length) : 5,
@@ -238,9 +252,10 @@ function AnswerBox({ step, onAnswer }) {
   }
 
   const today = localToday()
+  const latest = input.future ? addDays(today, 300) : today
   const valid = input.type === 'number'
     ? value !== '' && Number(value) >= input.min && Number(value) <= input.max
-    : input.type === 'date' ? value && value <= today : value.trim().length > 0
+    : input.type === 'date' ? value && value <= latest && (!input.future || value >= today) : value.trim().length > 0
 
   return (
     <form className="composer column" onSubmit={e => { e.preventDefault(); if (valid) onAnswer(value) }}>
@@ -252,8 +267,8 @@ function AnswerBox({ step, onAnswer }) {
           autoFocus
           type={input.type === 'number' ? 'number' : input.type === 'date' ? 'date' : 'text'}
           inputMode={input.type === 'number' ? 'numeric' : undefined}
-          min={input.type === 'number' ? input.min : undefined}
-          max={input.type === 'number' ? input.max : input.type === 'date' ? today : undefined}
+          min={input.type === 'number' ? input.min : input.future ? today : undefined}
+          max={input.type === 'number' ? input.max : input.type === 'date' ? latest : undefined}
           placeholder={input.placeholder}
           value={value}
           onChange={e => setValue(e.target.value)}

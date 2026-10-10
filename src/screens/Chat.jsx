@@ -10,7 +10,8 @@ import { pushSupport, enablePush, explainPushError } from '../lib/push'
 
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
-  mood: 'Mood', energy: 'Energy', symptom: 'Symptom', sleep: 'Sleep', sex_drive: 'Sex drive', note: 'Note'
+  mood: 'Mood', energy: 'Energy', symptom: 'Symptom', sleep: 'Sleep', sex_drive: 'Sex drive', note: 'Note',
+  hot_flash: 'Hot flush', night_sweat: 'Night sweat'
 }
 
 function greeting(profile) {
@@ -20,13 +21,26 @@ function greeting(profile) {
   return `Yay, we're all set${name}! 💜 Just talk to me like a friend: "got my period this morning", "cramps are bad today", or "what should I eat?"`
 }
 
+const MODE_NAMES = {
+  cycles: 'Switched to cycle tracking', ttc: 'Switched to trying-to-conceive mode', pregnant: 'Switched to pregnancy mode',
+  perimenopause: 'Switched to perimenopause mode', postmenopause: 'Switched to menopause mode'
+}
+function changeTags(c) {
+  return [
+    c.life_stage && MODE_NAMES[c.life_stage],
+    c.due_date && `Due date: ${prettyDate(c.due_date)}`,
+    c.ttc_since && !c.life_stage && `Trying since ${prettyDate(c.ttc_since)}`,
+    c.name && `I'll call you ${c.name}`
+  ].filter(Boolean)
+}
+
 export function cycleChip(c) {
   if (!c) return null
   switch (c.mode) {
     case 'cycle':
       return c.phase === 'late' ? `${c.lateBy} days late` : `Day ${c.day} · ${c.phase[0].toUpperCase()}${c.phase.slice(1)}`
     case 'no_phases': return 'Tracking bleeding'
-    case 'pregnant': return 'Pregnancy'
+    case 'pregnant': return c.pregnancy ? `Week ${c.pregnancy.week} · Pregnancy` : 'Pregnancy'
     case 'menopause': return 'Menopause'
     default: return null
   }
@@ -106,8 +120,10 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
     setMessages(m => [...m, {
       id: `hera-${Date.now()}`, role: 'hera', content: reply, logged: data?.logged,
       failed, detail: data?.detail, retry: failed ? message : undefined, safety: data?.safety_level,
-      partnerAlerted: data?.partner_alerted
+      partnerAlerted: data?.partner_alerted, changes: data?.profile_changes
     }])
+    // She switched modes or gave a due date in chat: keep the app in step.
+    if (data?.profile_changes && Object.keys(data.profile_changes).length) onProfileChange({ ...profile, ...data.profile_changes })
     if (data?.cycle) setCycle(data.cycle)
     input.current?.focus()
   }
@@ -162,6 +178,9 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
               <button className="chip small retry" disabled={thinking} onClick={() => send(null, m.retry)}>Try again</button>
             )}
             {(m.safety === 'distress' || m.safety === 'danger') && <SafetyActions profile={profile} danger={m.safety === 'danger'} />}
+            {m.changes && changeTags(m.changes).length > 0 && (
+              <div className="logged">{changeTags(m.changes).map(t => <span key={t} className="tag">✓ {t}</span>)}</div>
+            )}
             {m.partnerAlerted && <div className="partner-alerted">💜 I've asked {m.partnerAlerted} to check on you. They don't see what you said.</div>}
             {m.logged?.length > 0 && (
               <div className="logged">

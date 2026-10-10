@@ -92,3 +92,30 @@ console.log('all nudge tests passed')
   assert.equal(duePartnerNudge(her, link, starts, [{ kind: 'a', for_date: '2026-10-04' }, { kind: 'b', for_date: '2026-10-04' }], at('2026-10-04')), null)
   console.log('partner nudges: ok')
 }
+
+// ---------- Life-stage reminders ----------
+{
+  const { dueNudge, nudgeText } = await import('../src/lib/nudges.js')
+  // TTC: fertile window first day (28-day cycle from 28 Sep -> window 6-11 Oct)
+  const ttc = { ...base, life_stage: 'ttc' }
+  const f = dueNudge(ttc, starts, [], [], at('2026-10-06'))
+  assert.equal(f.kind, 'fertile_start')
+  assert.match(f.text, /fertile window likely starts today and runs until Sun, 11 Oct/)
+  assert.equal(dueNudge(base, starts, [], [], at('2026-10-06')), null) // not for cycle tracking
+  assert.match(dueNudge(ttc, starts, [], [], at('2026-10-04')).text, /folic acid/)
+  // Pregnancy: weekly update with week and size; no period reminders at all
+  const preg = { ...base, life_stage: 'pregnant', due_date: '2027-04-01' }
+  const pw = dueNudge(preg, starts, [], [], at('2026-10-11')) // a Sunday
+  assert.equal(pw.kind, 'weekly_checkin')
+  assert.match(pw.text, /^Hey Pran! Week 15! Baby is about the size of an apple\./)
+  for (const d of ['2026-10-24', '2026-10-26', '2026-10-28']) assert.equal(dueNudge(preg, starts, [], [], at(d)), null)
+  assert.match(dueNudge({ ...preg, due_date: null }, [], [], [], at('2026-10-11')).text, /Tell me your due date/)
+  assert.match(nudgeText('daily_tip', { ...preg, daily_tips: true }, { mode: 'pregnant', pregnancy: { trimester: 3 } }, '2026-10-11'),
+    /side|movement|swelling/)
+  // Menopause: symptom check-in and bone tips that fit her diet
+  const meno = { ...base, life_stage: 'postmenopause', diet: 'vegan' }
+  assert.match(dueNudge(meno, [], [], [], at('2026-10-11')).text, /hot flushes or night sweats/)
+  const tips = [0, 1, 2, 3].map(i => nudgeText('daily_tip', meno, { mode: 'menopause' }, `2026-01-0${i + 1}`))
+  assert.ok(tips.some(t => /ragi/.test(t)) && tips.every(t => !/paneer|curd|egg/i.test(t)))
+  console.log('stage reminders: ok')
+}

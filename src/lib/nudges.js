@@ -1,6 +1,7 @@
 // Hera's proactive messages: which one is due right now, and what it says.
 // Pure logic, used by the hera-nudge function (copied in by scripts/build-function.mjs) and by tests.
 import { computeCycle, daysBetween } from './cycle.js'
+import { pregnancyGuide, boneFoods } from './stages.js'
 
 export const DAILY_CAP = 3
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -61,6 +62,9 @@ export function dueNudge(p, starts, ends, sent, now) {
     const endedSinceStart = ends.some(e => e >= cycle.lastStart)
     if (cycle.day === 4 && !endedSinceStart) candidates.push('period_end_check')
   }
+  if (p.life_stage === 'ttc' && cycle.mode === 'cycle' && cycle.phase !== 'late' && cycle.fertileWindow?.from === today) {
+    candidates.push('fertile_start')
+  }
   if (clock.weekday === (p.checkin_day ?? 0)) candidates.push('weekly_checkin')
   if (p.daily_tips) candidates.push('daily_tip')
 
@@ -99,6 +103,32 @@ const TIPS = {
   ]
 }
 
+const PREGNANCY_TIPS = {
+  1: ['Nausea? Try small meals every 2–3 hours: khakra, dry toast, coconut water or a little ginger.',
+      'Tired is normal in the first weeks. Rest when you can, and keep taking your folic acid.',
+      'Food safety check: skip raw eggs, unpasteurised milk and undercooked meat for now.'],
+  2: ['Protein at every meal helps baby grow: dal, paneer, curd, sprouts, eggs or fish if you eat them.',
+      'Take your iron tablet with lemon water or amla, not with tea, coffee or milk.',
+      'A daily walk or prenatal yoga keeps you strong. Stop if anything hurts.'],
+  3: ['Sleeping on your side is best now. A pillow between your knees helps.',
+      'Notice baby\'s usual movement pattern. If it slows or stops, call your doctor right away.',
+      'Sudden swelling of your face or hands, or a bad headache? Call your doctor today.']
+}
+
+function stageTipList(p, cycle) {
+  if (p.life_stage === 'pregnant') return PREGNANCY_TIPS[cycle.pregnancy?.trimester ?? 1]
+  if (p.life_stage === 'perimenopause' || p.life_stage === 'postmenopause') {
+    const foods = boneFoods(p.diet)
+    return [
+      `Bone boost today: ${foods[0].toLowerCase()} or ${foods[2].toLowerCase()}. Calcium and protein keep your bones strong.`,
+      'Hot flushes? Dress in layers, keep cool water close, and go easy on spicy food, caffeine and alcohol if they set you off.',
+      'Strength or weight-bearing exercise, like brisk walks or light weights, twice a week protects your bones and mood.',
+      '15–20 minutes of morning sun helps your body make vitamin D for your bones.'
+    ]
+  }
+  return null
+}
+
 export function nudgeText(kind, p, cycle, today = '2026-01-01') {
   const tone = p.tone || 'bestie'
   const name = p.name ? p.name.split(' ')[0] : ''
@@ -118,16 +148,38 @@ export function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts'
         ? 'Day 4 of your period. Is it over, or still going?'
         : `${hi}It's day 4 of your period. Is it over, or still going?`
+    case 'fertile_start': {
+      const until = cycle.fertileWindow.to
+      const d = new Date(until + 'T00:00:00Z').toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' })
+      return tone === 'facts'
+        ? `Your estimated fertile window starts today and runs until ${d}. It's an estimate${cycle.rough ? ', and a rough one for your cycles' : ''}.`
+        : `${hi}Your fertile window likely starts today and runs until ${d}${cycle.rough ? ' (a rough estimate for your cycles)' : ''}. No pressure though: sex every 2–3 days works just as well${heart}`
+    }
     case 'weekly_checkin': {
+      const stage = p.life_stage
+      if (stage === 'pregnant') {
+        const w = cycle.pregnancy
+        if (!w) return tone === 'facts' ? 'Weekly check-in: how are you feeling? Tell me your due date so I can follow your pregnancy week by week.'
+          : `${hi}Weekly check-in! How are you and the bump feeling? Tell me your due date and I'll follow along week by week${heart}`
+        const g = pregnancyGuide(w)
+        const lead = `Week ${w.week}${tone === 'facts' ? '.' : '!'} Baby is about the size of ${g.size}. ${g.focus}`
+        return tone === 'facts' ? `${lead} How are you feeling this week?` : `${hi}${lead} How are you feeling this week?${heart}`
+      }
+      if (stage === 'perimenopause' || stage === 'postmenopause') {
+        const q = '1) Any hot flushes or night sweats this week? 2) How are you sleeping? 3) How\'s your mood?'
+        return tone === 'facts' ? `Weekly check-in. ${q}` : `${hi}Weekly check-in. ${q} Answer whatever you like${heart}`
+      }
       const where = PHASE_WORDS[cycle.phase] ?? 'this week'
       const q = cycle.lateLuteal
         ? '1) Any bloating, cramps or headaches? 2) How\'s your mood, honestly? PMS days can feel heavy. 3) How are you sleeping?'
         : '1) How\'s your body feeling? 2) How\'s your mood? 3) How are you sleeping?'
       const lead = cycle.mode === 'cycle' ? `Weekly check-in for ${where}.` : 'Weekly check-in.'
-      return tone === 'facts' ? `${lead} ${q}` : `${hi}${lead} ${q} Answer whatever you like${heart}`
+      const folic = stage === 'ttc' ? ' And a little reminder to keep taking your folic acid.' : ''
+      return tone === 'facts' ? `${lead} ${q}${folic}` : `${hi}${lead} ${q} Answer whatever you like${heart}${folic}`
     }
     case 'daily_tip': {
-      const list = TIPS[cycle.phase] ?? ['Drink some water, stretch for a minute, and check in with how you feel today.']
+      const stageTips = stageTipList(p, cycle)
+      const list = stageTips ?? TIPS[cycle.phase] ?? ['Drink some water, stretch for a minute, and check in with how you feel today.']
       const pick = list[Math.abs(daysBetween('2026-01-01', today)) % list.length]
       return tone === 'facts' ? pick.replace(/ 💜|!/g, '.').replace(/\.\./g, '.') : `${hi}${pick}`
     }

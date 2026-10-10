@@ -277,3 +277,18 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .connected { margin: 0; font-size: 1rem; }
 .partner-alerted { margin-top: 8px; font-size: .85rem; font-weight: 700; color: var(--plum); }
 .invite-banner { max-width: 380px; margin: 0 0 12px; padding: 12px 14px; border-radius: 14px; background: var(--hera-bubble); text-align: left; line-height: 1.45; font-size: .92rem; }
+
+/* ---- Life-stage modes ---- */
+.preg-week { color: var(--plum); font-size: 1.6rem; }
+.bar { height: 10px; border-radius: 999px; background: var(--line); overflow: hidden; }
+.bar span { display: block; height: 100%; background: linear-gradient(90deg, #E8849A, var(--plum)); border-radius: 999px; }
+.mini { margin: 0 0 2px; font-size: .95rem; }
+.warn { border-color: #E8A0A0; }
+.warn h2 { font-size: 1rem !important; }
+.warn-list { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: .9rem; line-height: 1.35; }
+.warn .safety-btn { align-self: flex-start; }
+.food-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.food { padding: 7px 12px; border-radius: 999px; background: var(--hera-bubble); font-size: .85rem; font-weight: 700; }
+.links { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; font-size: .92rem; }
+.links a { color: var(--plum); font-weight: 700; text-decoration: none; }
+.card .fine { margin: 0; font-size: .75rem; color: var(--muted); line-height: 1.4; }
