@@ -27,13 +27,26 @@ export function isNetworkError(err) {
   return /load failed|failed to fetch|networkerror|network request failed|typeerror/i.test(String(err?.message ?? err ?? ''))
 }
 
-// Retry a Supabase call a few times when the phone's connection blips.
-export async function withRetry(fn, tries = 3) {
+// Right after the app wakes up, Supabase's database can briefly reject a brand-new login token
+// ("JWT issued at future": its clock is a second behind the login server). Waiting fixes it.
+export function isClockSkew(err) {
+  return /issued at future|PGRST303/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)
+}
+function isExpired(err) {
+  return /jwt expired|PGRST301/i.test(`${err?.message ?? ''} ${err?.code ?? ''}`)
+}
+
+// Retry a Supabase call when the connection blips or the login token needs a moment.
+export async function withRetry(fn, tries = 4) {
   let last
   for (let i = 0; i < tries; i++) {
     last = await fn()
-    if (!last.error || !isNetworkError(last.error)) return last
-    await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    const err = last.error
+    if (!err) return last
+    if (isExpired(err)) await supabase.auth.refreshSession().catch(() => {})
+    else if (isClockSkew(err)) await new Promise(r => setTimeout(r, 1500 * (i + 1)))
+    else if (isNetworkError(err)) await new Promise(r => setTimeout(r, 800 * (i + 1)))
+    else return last
   }
   return last
 }
