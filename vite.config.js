@@ -9,7 +9,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      workbox: { importScripts: ['push-sw.js'] },
+      workbox: { importScripts: ['push-sw.js'], globPatterns: ['**/*.{js,css,html,svg,png}', '**/*-latin-*.woff2'] },
       includeAssets: ['icon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: 'Hera',

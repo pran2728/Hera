@@ -145,6 +145,8 @@
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@fontsource/cormorant-garamond@^5.3.0",
+        "npm:@fontsource/nunito@^5.3.0",
         "npm:@supabase/supabase-js@^2.45.0",
         "npm:@vitejs/plugin-react@^4.3.1",
         "npm:react-dom@^18.3.1",

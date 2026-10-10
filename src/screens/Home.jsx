@@ -32,10 +32,10 @@ export default function Home({ session, profile, onProfileChange, onDeleted }) {
         {tab === 'me' && <div className="pane"><Profile session={session} profile={profile} onSaved={onProfileChange} onDeleted={onDeleted} /></div>}
       </div>
       <nav className="tabbar" aria-label="Main">
-        {TABS.map(([key, label, icon]) => (
+        {TABS.map(([key, label]) => (
           <button key={key} type="button" className={`tab ${tab === key ? 'on' : ''}`} aria-current={tab === key ? 'page' : undefined} onClick={() => go(key)}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icon}</svg>
             <span>{label}</span>
+            <span className="tab-line" aria-hidden="true" />
           </button>
         ))}
       </nav>

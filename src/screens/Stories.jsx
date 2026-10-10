@@ -31,7 +31,7 @@ export function StoryRow({ stories, today, onOpen, version }) {
       {stories.map((s, i) => (
         <button key={s.key} type="button" role="listitem" className={`story-dot ${seen.includes(s.key) ? 'seen' : ''}`} onClick={() => onOpen(i)}
                 aria-label={`${s.label}${seen.includes(s.key) ? ' (seen)' : ''}`}>
-          <span className="story-ring"><span className={`story-face bg-${s.bg}`}>
+          <span className="story-ring"><span className={`story-face face-${s.key}`}>
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{ICONS[s.key]}</svg>
           </span></span>
           <span className="story-label">{s.label}</span>
