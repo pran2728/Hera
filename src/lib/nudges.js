@@ -1,7 +1,8 @@
 // Hera's proactive messages: which one is due right now, and what it says.
 // Pure logic, used by the hera-nudge function (copied in by scripts/build-function.mjs) and by tests.
-import { computeCycle, daysBetween } from './cycle.js'
+import { computeCycle, daysBetween, addDays } from './cycle.js'
 import { pregnancyGuide, boneFoods } from './stages.js'
+import { podcastFor, isPodcastDay } from './podcasts.js'
 
 export const DAILY_CAP = 3
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
@@ -66,6 +67,7 @@ export function dueNudge(p, starts, ends, sent, now) {
     candidates.push('fertile_start')
   }
   if (clock.weekday === (p.checkin_day ?? 0)) candidates.push('weekly_checkin')
+  if (p.podcast_picks !== false && isPodcastDay(today)) candidates.push('podcast')
   if (p.daily_tips) candidates.push('daily_tip')
 
   const kind = candidates.find(k => !already(k))
@@ -154,6 +156,12 @@ export function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts'
         ? `Your estimated fertile window starts today and runs until ${d}. It's an estimate${cycle.rough ? ', and a rough one for your cycles' : ''}.`
         : `${hi}Your fertile window likely starts today and runs until ${d}${cycle.rough ? ' (a rough estimate for your cycles)' : ''}. No pressure though: sex every 2–3 days works just as well${heart}`
+    }
+    case 'podcast': {
+      const pod = podcastFor(p, cycle, today)
+      return tone === 'facts'
+        ? `Podcast pick: ${pod.name} (${pod.host}). Why now: ${pod.why} ${pod.url}`
+        : `${hi}Podcast pick for the next few days 🎧 ${pod.name} with ${pod.host}: ${pod.why} ${pod.url}`
     }
     case 'weekly_checkin': {
       const stage = p.life_stage
@@ -252,15 +260,19 @@ function pickFor(list, today) {
 }
 
 // What the partner screen shows.
-export function partnerView(her, cycle, today) {
+export function partnerView(her, cycle, today, shareDates = false) {
   const key = partnerPhase(cycle)
   const ph = key ? PARTNER_PHASES[key] : null
+  // Dates only with her permission, and only for a natural cycle that isn't late.
+  const dates = shareDates && key !== null
   return {
     her_name: firstName(her),
     phase: key,
     phase_label: ph?.label ?? null,
     about: ph?.about ?? null,
-    tip: pickFor(PARTNER_TIPS[key ?? 'general'], today)
+    tip: pickFor(PARTNER_TIPS[key ?? 'general'], today),
+    next_period: dates ? { from: cycle.nextPeriod.from, to: cycle.nextPeriod.to, rough: !!cycle.rough } : null,
+    period_now: dates && cycle.phase === 'menstrual' ? { from: cycle.lastStart, to: addDays(cycle.lastStart, cycle.periodLength - 1) } : null
   }
 }
 

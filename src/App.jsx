@@ -7,6 +7,7 @@ import SetupNeeded from './screens/SetupNeeded.jsx'
 import JoinPartner from './screens/JoinPartner.jsx'
 import PartnerHome from './screens/PartnerHome.jsx'
 import { pendingInvite, clearInvite } from './lib/partner'
+import { applyTheme } from './lib/theme'
 
 export default function App() {
   const [session, setSession] = useState(undefined) // undefined = still checking
@@ -50,6 +51,7 @@ function SignedIn({ session }) {
         return
       }
       setProfile(data)
+      if (data?.theme) applyTheme(data.theme)
       // Keep her timezone current so reminders arrive at her local time.
       const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
       if (data && tz && data.timezone !== tz) {

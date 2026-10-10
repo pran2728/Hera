@@ -98,7 +98,7 @@ export default function PartnerSettings({ profile }) {
   return (
     <>
       <p className="connected">💜 Connected with <strong>{who}</strong></p>
-      <p className="muted small">{who} sees your phase and a tip for the day. Never your chats, logs or symptoms. Choose what they get (saves right away):</p>
+      <p className="muted small">{who} sees your phase, a tip for the day and, if you allow it, your next likely period dates. Never your chats, logs or symptoms. Choose what they get (saves right away):</p>
       <label className="toggle">
         <input type="checkbox" checked={link.notify_heads_up} onChange={e => setNudge('notify_heads_up', e.target.checked)} />
         <span>Heads-up 2 days before my period</span>
@@ -106,6 +106,10 @@ export default function PartnerSettings({ profile }) {
       <label className="toggle">
         <input type="checkbox" checked={link.notify_tips} onChange={e => setNudge('notify_tips', e.target.checked)} />
         <span>Weekly tip on how to support me (on my check-in day)</span>
+      </label>
+      <label className="toggle">
+        <input type="checkbox" checked={link.share_dates !== false} onChange={e => setNudge('share_dates', e.target.checked)} />
+        <span>Show {who} my next likely period on a calendar (never if I'm late, pregnant or in menopause)</span>
       </label>
       <label className="toggle">
         <input type="checkbox" checked={link.notify_crisis} onChange={e => setNudge('notify_crisis', e.target.checked)} />

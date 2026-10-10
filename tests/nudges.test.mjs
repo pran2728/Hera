@@ -3,7 +3,7 @@ import { dueNudge, localClock, inQuietHours, nudgeText } from '../src/lib/nudges
 import { computeCycle } from '../src/lib/cycle.js'
 
 const base = { id: 'u1', name: 'Pran', life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5,
-  tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '09:00', quiet_start: '22:00', quiet_end: '08:00', checkin_day: 0 }
+  tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '09:00', quiet_start: '22:00', quiet_end: '08:00', checkin_day: 0, podcast_picks: false }
 // 10:00 IST on a given date = 04:30 UTC
 const at = (date, hhmm = '10:00') => { const [h, m] = hhmm.split(':').map(Number); return new Date(Date.parse(date + 'T00:00:00Z') + ((h * 60 + m) - 330) * 60000) }
 
@@ -118,4 +118,23 @@ console.log('all nudge tests passed')
   const tips = [0, 1, 2, 3].map(i => nudgeText('daily_tip', meno, { mode: 'menopause' }, `2026-01-0${i + 1}`))
   assert.ok(tips.some(t => /ragi/.test(t)) && tips.every(t => !/paneer|curd|egg/i.test(t)))
   console.log('stage reminders: ok')
+}
+
+// ---------- Partner calendar + podcast reminders ----------
+{
+  const { partnerView, dueNudge } = await import('../src/lib/nudges.js')
+  const her = { ...base }
+  const onPeriod = computeCycle(her, ['2026-10-08'], '2026-10-10')
+  let v = partnerView(her, onPeriod, '2026-10-10', true)
+  assert.deepEqual(v.next_period, { from: '2026-11-02', to: '2026-11-08', rough: false })
+  assert.deepEqual(v.period_now, { from: '2026-10-08', to: '2026-10-12' })
+  assert.equal(partnerView(her, onPeriod, '2026-10-10', false).next_period, null) // her switch off
+  assert.equal(partnerView(her, computeCycle(her, ['2026-08-01'], '2026-10-10'), '2026-10-10', true).next_period, null) // late: hidden
+  assert.equal(partnerView({ ...her, life_stage: 'pregnant' }, { mode: 'pregnant' }, '2026-10-10', true).next_period, null)
+  // Podcast every 3rd day, with a real link; off when she turns it off
+  const pod = dueNudge({ ...base, checkin_day: 9, podcast_picks: true }, ['2026-09-20'], [], [], at('2026-10-10')) // 2026-10-10 is day 282 => 282 % 3 = 0
+  assert.equal(pod.kind, 'podcast'); assert.match(pod.text, /^Hey Pran! Podcast pick for the next few days 🎧 .+ https:\/\//)
+  assert.equal(dueNudge({ ...base, checkin_day: 9, podcast_picks: false }, ['2026-09-20'], [], [], at('2026-10-10')), null)
+  assert.equal(dueNudge({ ...base, checkin_day: 9, podcast_picks: true }, ['2026-09-20'], [], [], at('2026-10-11')), null)
+  console.log('partner calendar + podcasts: ok')
 }

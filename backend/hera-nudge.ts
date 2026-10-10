@@ -373,6 +373,66 @@ function validDueDate(d, today) {
 }
 
 
+// ---- copied from src/lib/podcasts.js ----
+
+const PODCASTS = {
+  on_being: { name: 'On Being', host: 'Krista Tippett', url: 'https://onbeing.org/series/podcast/' },
+  feel_better: { name: 'Feel Better, Live More', host: 'Dr Rangan Chatterjee', url: 'https://drchatterjee.com/podcast/' },
+  hidden_brain: { name: 'Hidden Brain', host: 'Shankar Vedantam', url: 'https://www.hiddenbrain.org/podcast/' },
+  ted_daily: { name: 'TED Talks Daily', host: 'TED', url: 'https://www.ted.com/podcasts/ted-talks-daily' },
+  happiness_lab: { name: 'The Happiness Lab', host: 'Dr Laurie Santos', url: 'https://www.happinesslab.fm/' },
+  unlocking_us: { name: 'Unlocking Us', host: 'Brené Brown', url: 'https://brenebrown.com/podcast-show/unlocking-us/' },
+  fertility_friday: { name: 'Fertility Friday', host: 'Lisa Hendrickson-Jack', url: 'https://fertilityfriday.com/' },
+  birth_hour: { name: 'The Birth Hour', host: 'Bryn Huntpalmer', url: 'https://www.thebirthhour.com/' },
+  pregnancy_podcast: { name: 'Pregnancy Podcast', host: 'Vanessa Merten', url: 'https://pregnancypodcast.com/' },
+  birth_agni: { name: 'Birth Agni Podcast', host: 'BirthAgni (India)', url: 'https://www.birthagni.com/birthagnipodcast' },
+  newson: { name: 'The Dr Louise Newson Podcast', host: 'Dr Louise Newson', url: 'https://www.drlouisenewson.co.uk/podcasts' }
+}
+
+const PICKS = {
+  menstrual: [['on_being', 'slow, gentle conversations for low-energy days. Perfect with a hot water bag.'],
+              ['feel_better', 'easy, practical health chats you can listen to lying down.']],
+  follicular: [['hidden_brain', 'your energy and curiosity are rising, and this show is full of "huh, interesting!" moments.'],
+               ['ted_daily', 'short, fresh ideas for the week you feel like starting new things.']],
+  ovulatory: [['ted_daily', 'bold ideas for your most confident, social days.'],
+              ['happiness_lab', 'the science of connection, for the days you feel most like being with people.']],
+  luteal: [['happiness_lab', 'small, science-backed ways to keep your mood steady as energy slows.'],
+           ['on_being', 'calm and grounding for the quieter half of your cycle.']],
+  pms: [['unlocking_us', 'warm, honest talk about big feelings. Kind company for PMS days.'],
+        ['happiness_lab', 'gentle mood boosts that actually have science behind them.']],
+  ttc: [['fertility_friday', 'all about understanding your cycle and fertility signs.'],
+        ['feel_better', 'sleep, stress and food habits that support your body while you try.']],
+  pregnant: [['pregnancy_podcast', 'evidence-based answers for each stage of pregnancy.'],
+             ['birth_agni', 'birth and postpartum, told from an Indian point of view.'],
+             ['birth_hour', 'real birth stories from all kinds of women.']],
+  menopause: [['newson', 'a menopause doctor explaining symptoms and treatment options clearly.'],
+              ['feel_better', 'sleep, strength and stress tips that matter even more now.']],
+  general: [['feel_better', 'practical, kind health advice in plain words.'],
+            ['happiness_lab', 'small habits that make everyday life feel lighter.'],
+            ['hidden_brain', 'curious stories about how our minds work.']]
+}
+
+function podcastBucket(profile, cycle) {
+  const stage = profile?.life_stage
+  if (stage === 'pregnant') return 'pregnant'
+  if (stage === 'perimenopause' || stage === 'postmenopause') return 'menopause'
+  if (stage === 'ttc') return 'ttc'
+  if (cycle?.mode !== 'cycle' || !cycle.phase || cycle.phase === 'late') return 'general'
+  return cycle.lateLuteal ? 'pms' : cycle.phase
+}
+
+function podcastFor(profile, cycle, today) {
+  const bucket = podcastBucket(profile, cycle)
+  const list = PICKS[bucket]
+  const slot = Math.floor(Math.max(0, daysBetween('2026-01-01', today)) / 3)
+  const [key, why] = list[slot % list.length]
+  return { ...PODCASTS[key], why, bucket }
+}
+
+function isPodcastDay(today) {
+  return Math.max(0, daysBetween('2026-01-01', today)) % 3 === 0
+}
+
 // ---- copied from src/lib/nudges.js ----
 
 const DAILY_CAP = 3
@@ -437,6 +497,7 @@ function dueNudge(p, starts, ends, sent, now) {
     candidates.push('fertile_start')
   }
   if (clock.weekday === (p.checkin_day ?? 0)) candidates.push('weekly_checkin')
+  if (p.podcast_picks !== false && isPodcastDay(today)) candidates.push('podcast')
   if (p.daily_tips) candidates.push('daily_tip')
 
   const kind = candidates.find(k => !already(k))
@@ -524,6 +585,12 @@ function nudgeText(kind, p, cycle, today = '2026-01-01') {
       return tone === 'facts'
         ? `Your estimated fertile window starts today and runs until ${d}. It's an estimate${cycle.rough ? ', and a rough one for your cycles' : ''}.`
         : `${hi}Your fertile window likely starts today and runs until ${d}${cycle.rough ? ' (a rough estimate for your cycles)' : ''}. No pressure though: sex every 2–3 days works just as well${heart}`
+    }
+    case 'podcast': {
+      const pod = podcastFor(p, cycle, today)
+      return tone === 'facts'
+        ? `Podcast pick: ${pod.name} (${pod.host}). Why now: ${pod.why} ${pod.url}`
+        : `${hi}Podcast pick for the next few days 🎧 ${pod.name} with ${pod.host}: ${pod.why} ${pod.url}`
     }
     case 'weekly_checkin': {
       const stage = p.life_stage
@@ -615,15 +682,19 @@ function pickFor(list, today) {
   return list[Math.abs(daysBetween('2026-01-01', today)) % list.length]
 }
 
-function partnerView(her, cycle, today) {
+function partnerView(her, cycle, today, shareDates = false) {
   const key = partnerPhase(cycle)
   const ph = key ? PARTNER_PHASES[key] : null
+  // Dates only with her permission, and only for a natural cycle that isn't late.
+  const dates = shareDates && key !== null
   return {
     her_name: firstName(her),
     phase: key,
     phase_label: ph?.label ?? null,
     about: ph?.about ?? null,
-    tip: pickFor(PARTNER_TIPS[key ?? 'general'], today)
+    tip: pickFor(PARTNER_TIPS[key ?? 'general'], today),
+    next_period: dates ? { from: cycle.nextPeriod.from, to: cycle.nextPeriod.to, rough: !!cycle.rough } : null,
+    period_now: dates && cycle.phase === 'menstrual' ? { from: cycle.lastStart, to: addDays(cycle.lastStart, cycle.periodLength - 1) } : null
   }
 }
 
@@ -847,8 +918,8 @@ async function partnerScreen(partnerId: string) {
   const cycle = her?.onboarded_at ? computeCycle(her, await periodStarts(link.owner_id), today) : { mode: 'unknown' }
   return {
     linked: true,
-    ...partnerView(her ?? {}, cycle, today),
-    nudges: { heads_up: link.notify_heads_up, tips: link.notify_tips, crisis: link.notify_crisis }
+    ...partnerView(her ?? {}, cycle, today, link.share_dates !== false),
+    nudges: { heads_up: link.notify_heads_up, tips: link.notify_tips, crisis: link.notify_crisis, dates: link.share_dates !== false }
   }
 }
 

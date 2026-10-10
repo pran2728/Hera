@@ -75,6 +75,10 @@ export function ReminderSettings({ f, set }) {
         <input type="checkbox" checked={f.daily_tips} onChange={e => set('daily_tips', e.target.checked)} />
         <span>Daily tip for my phase (food, water, movement)</span>
       </label>
+      <label className="toggle">
+        <input type="checkbox" checked={f.podcast_picks} onChange={e => set('podcast_picks', e.target.checked)} />
+        <span>A podcast pick for my phase every 3 days 🎧</span>
+      </label>
       <div className="two">
         <label className="field">
           <span>Quiet from</span>

@@ -28,7 +28,7 @@ const back = (n: number) => new Date(Date.parse(today) - n * 86400000).toISOStri
 Deno.test('hera-nudge', async (t) => {
   db.hera_settings.push({ key: 'cron_secret', value: 's3cret' })
   db.profiles.push({ id: 'u1', name: 'Pran', life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5,
-    tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '00:00', quiet_start: '00:00', quiet_end: '00:00', checkin_day: 9, onboarded_at: 'x' })
+    tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '00:00', quiet_start: '00:00', quiet_end: '00:00', checkin_day: 9, podcast_picks: false, onboarded_at: 'x' })
   db.cycle_logs.push({ user_id: 'u1', log_date: back(26), kind: 'period_start' })
   db.push_subscriptions.push({ id: 900, user_id: 'u1', endpoint: 'https://push.example/1',
     p256dh: phone.getPublicKey('base64url'), auth: authSecret.toString('base64url') })
@@ -66,9 +66,15 @@ Deno.test('hera-nudge', async (t) => {
   })
   await t.step('partner screen shows only her name, phase and a tip', async () => {
     const r = await call({ action: 'partner_view' }, { Authorization: 'Bearer partner' })
-    eq(Object.keys(r.json).sort(), ['about', 'her_name', 'linked', 'nudges', 'phase', 'phase_label', 'tip'])
+    eq(Object.keys(r.json).sort(), ['about', 'her_name', 'linked', 'next_period', 'nudges', 'period_now', 'phase', 'phase_label', 'tip'])
+    eq(r.json.next_period.from <= r.json.next_period.to, true) // shared by default
+    eq(r.json.period_now, null)
     eq(r.json.her_name, 'Pran'); eq(r.json.phase, 'pms'); eq(r.json.phase_label, 'PMS days')
     eq((await call({ action: 'partner_view' }, { Authorization: 'Bearer good' })).json, { linked: false })
+    db.partner_links[0].share_dates = false
+    const hidden = await call({ action: 'partner_view' }, { Authorization: 'Bearer partner' })
+    eq(hidden.json.next_period, null); eq(hidden.json.nudges.dates, false)
+    db.partner_links[0].share_dates = true
     eq((await call({ action: 'partner_view' }, { Authorization: 'Bearer bad' })).status, 401)
   })
   await t.step('crisis alert reaches the partner once, then rests for 3 hours', async () => {

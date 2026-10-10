@@ -5,6 +5,7 @@ import { localToday } from '../lib/dates'
 import { LIFE_STAGES, CONTRACEPTION, CONDITIONS, DIETS, TONES, ACTIVITY, GOALS } from '../lib/options'
 import { NotificationsSwitch, ReminderSettings, PauseButton } from './Reminders.jsx'
 import PartnerSettings from './PartnerSettings.jsx'
+import ThemePicker from './ThemePicker.jsx'
 
 const NO_PERIOD_STAGES = ['pregnant', 'postmenopause']
 
@@ -29,6 +30,7 @@ function fromProfile(p) {
     nudge_time: p.nudge_time ?? '09:00',
     checkin_day: p.checkin_day ?? 0,
     daily_tips: p.daily_tips ?? false,
+    podcast_picks: p.podcast_picks ?? true,
     quiet_start: p.quiet_start ?? '22:00',
     quiet_end: p.quiet_end ?? '08:00',
     trusted_name: p.trusted_name ?? '',
@@ -86,6 +88,7 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
       nudge_time: f.nudge_time || '09:00',
       checkin_day: f.checkin_day,
       daily_tips: f.daily_tips,
+      podcast_picks: f.podcast_picks,
       quiet_start: f.quiet_start || '22:00',
       quiet_end: f.quiet_end || '08:00',
       trusted_name: f.trusted_name.trim() || null,
@@ -231,6 +234,14 @@ export default function Profile({ session, profile, onSaved, onDeleted, onBack }
         <section className="card">
           <h2>How Hera talks to you</h2>
           <Chips options={TONES} picked={[f.tone]} onToggle={v => set('tone', v)} single />
+        </section>
+
+        <section className="card">
+          <h2>Colour theme</h2>
+          <p className="muted small">Changes right away, on all your devices.</p>
+          <ThemePicker value={profile.theme} onPick={theme =>
+            supabase.from('profiles').update({ theme }).eq('id', session.user.id).select().single()
+              .then(({ data }) => data && onSaved(data))} />
         </section>
 
         {problems.length > 0 && <p className="error" role="alert">{problems[0]}</p>}

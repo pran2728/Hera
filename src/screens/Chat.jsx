@@ -7,6 +7,7 @@ import { Logo } from '../App.jsx'
 import MyCycle from './MyCycle.jsx'
 import Profile from './Profile.jsx'
 import { pushSupport, enablePush, explainPushError } from '../lib/push'
+import { linkify } from '../lib/linkify.jsx'
 
 const LOG_LABELS = {
   period_start: 'Period started', period_end: 'Period ended', flow: 'Flow', pain: 'Pain',
@@ -172,7 +173,7 @@ export default function Chat({ session, profile, onProfileChange, onDeleted }) {
         {messages?.length === 0 && <div className="bubble hera">{greeting(profile)}</div>}
         {messages?.map(m => (
           <div key={m.id} className={`bubble ${m.role === 'user' ? 'me' : 'hera'} ${m.failed ? 'failed' : ''}`}>
-            {m.content}
+            {m.role === 'user' ? m.content : linkify(m.content)}
             {m.detail && <div className="detail-line">Details: {m.detail}</div>}
             {m.failed && m.retry && (
               <button className="chip small retry" disabled={thinking} onClick={() => send(null, m.retry)}>Try again</button>

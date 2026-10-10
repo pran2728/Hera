@@ -186,8 +186,8 @@ async function partnerScreen(partnerId: string) {
   const cycle = her?.onboarded_at ? computeCycle(her, await periodStarts(link.owner_id), today) : { mode: 'unknown' }
   return {
     linked: true,
-    ...partnerView(her ?? {}, cycle, today),
-    nudges: { heads_up: link.notify_heads_up, tips: link.notify_tips, crisis: link.notify_crisis }
+    ...partnerView(her ?? {}, cycle, today, link.share_dates !== false),
+    nudges: { heads_up: link.notify_heads_up, tips: link.notify_tips, crisis: link.notify_crisis, dates: link.share_dates !== false }
   }
 }
 

@@ -202,3 +202,10 @@ alter table public.profiles add column if not exists ttc_since date;  -- trying-
 alter table public.cycle_logs drop constraint if exists cycle_logs_kind_check;
 alter table public.cycle_logs add constraint cycle_logs_kind_check check (kind in
   ('period_start','period_end','flow','pain','mood','energy','symptom','sleep','sex_drive','note','hot_flash','night_sweat'));
+
+-- ================= Podcasts, themes, partner calendar (safe to re-run) =================
+alter table public.profiles add column if not exists podcast_picks boolean default true;  -- a podcast every 3 days
+alter table public.profiles add column if not exists theme text default 'plum';           -- colour theme
+-- She decides whether her partner sees her next likely period dates.
+alter table public.partner_links add column if not exists share_dates boolean not null default true;
+grant update (notify_heads_up, notify_tips, notify_crisis, share_dates) on public.partner_links to authenticated;

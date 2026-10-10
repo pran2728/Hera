@@ -3,6 +3,7 @@ import { supabase, withRetry } from '../lib/supabase'
 import { localToday } from '../lib/dates'
 import { computeCycle, prettyDate, daysBetween, PHASE_LABELS } from '../lib/cycle'
 import { periodDays, predictedDays, monthGrid } from '../lib/calendar'
+import { PatternsCard, PodcastCard } from './PatternCards.jsx'
 import { PregnancyCard, WarningSigns, TtcCard, SymptomsCard, BonesCard, SexDriveCard, ReadMore } from './StageCards.jsx'
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
@@ -115,7 +116,9 @@ export default function MyCycle({ userId, onBack }) {
             </section>}
 
             {['perimenopause', 'postmenopause'].includes(profile.life_stage) && <BonesCard diet={profile.diet} />}
+            <PatternsCard logs={logs} today={today} showCycle={view.cycle.mode === 'cycle' || view.cycle.mode === 'unknown'} />
             {view.cycle.mode === 'cycle' && <SexDriveCard profile={profile} logs={logs} />}
+            {profile.podcast_picks !== false && <PodcastCard profile={profile} cycle={view.cycle} today={today} />}
             <ReadMore stage={profile.life_stage} />
 
             <section className="card">
