@@ -885,37 +885,49 @@ async function runBatch(now: Date) {
     }
   }
 
-  let count = 0
+  let count = 0, failed = 0, delivered = 0
   for (const p of profiles ?? []) {
     if (!byUser.has(p.id)) continue // she hasn't turned on notifications herself
-    const { starts, ends } = periodsOf(p.id)
-    const already = (sent ?? []).filter((s: { user_id: string }) => s.user_id === p.id)
-    const nudge = dueNudge(p, starts, ends, already, now)
-    if (!nudge) continue
+    // One person's problem must never stop everyone else's reminders.
+    try {
+      const { starts, ends } = periodsOf(p.id)
+      const already = (sent ?? []).filter((s: { user_id: string }) => s.user_id === p.id)
+      const nudge = dueNudge(p, starts, ends, already, now)
+      if (!nudge) continue
 
-    // Claim it first: the table's key makes a second run skip the same reminder.
-    const { error: claimErr } = await admin.from('nudges_sent').insert({ user_id: p.id, kind: nudge.kind, for_date: nudge.for_date })
-    if (claimErr) continue
+      // Claim it first: the table's key makes a second run skip the same reminder.
+      const { error: claimErr } = await admin.from('nudges_sent').insert({ user_id: p.id, kind: nudge.kind, for_date: nudge.for_date })
+      if (claimErr) continue
 
-    await admin.from('messages').insert({ user_id: p.id, role: 'hera', content: nudge.text })
-    await pushAll(byUser.get(p.id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
-    count++
+      await admin.from('messages').insert({ user_id: p.id, role: 'hera', content: nudge.text })
+      delivered += await pushAll(byUser.get(p.id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      count++
+    } catch (e) {
+      failed++
+      console.error('nudge failed for one user:', String(e).slice(0, 300))
+    }
   }
 
   // ---- Partner nudges: timed by HER settings, sent to the partner's devices only ----
   let partnerCount = 0
   for (const link of partnerLinks) {
-    const her = (profiles ?? []).find((p: { id: string }) => p.id === link.owner_id)
-    if (!her) continue
-    const already = (sent ?? []).filter((s: { user_id: string }) => s.user_id === link.partner_id)
-    const nudge = duePartnerNudge(her, link, periodsOf(her.id).starts, already, now)
-    if (!nudge) continue
-    const { error: claimErr } = await admin.from('nudges_sent').insert({ user_id: link.partner_id, kind: nudge.kind, for_date: nudge.for_date })
-    if (claimErr) continue
-    await pushAll(byUser.get(link.partner_id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
-    partnerCount++
+    try {
+      const her = (profiles ?? []).find((p: { id: string }) => p.id === link.owner_id)
+      if (!her) continue
+      const already = (sent ?? []).filter((s: { user_id: string }) => s.user_id === link.partner_id)
+      const nudge = duePartnerNudge(her, link, periodsOf(her.id).starts, already, now)
+      if (!nudge) continue
+      const { error: claimErr } = await admin.from('nudges_sent').insert({ user_id: link.partner_id, kind: nudge.kind, for_date: nudge.for_date })
+      if (claimErr) continue
+      await pushAll(byUser.get(link.partner_id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      partnerCount++
+    } catch (e) {
+      failed++
+      console.error('partner nudge failed:', String(e).slice(0, 300))
+    }
   }
-  return { checked: (profiles ?? []).length, sent: count, partners: partnerCount }
+  // phones = devices with notifications on; delivered = phones that accepted today's pushes
+  return { checked: (profiles ?? []).length, phones: (subs ?? []).length, sent: count, delivered, partners: partnerCount, failed }
 }
 
 // She told Hera she's not okay: tell her partner to check on her (never what she said).

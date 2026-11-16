@@ -45,6 +45,32 @@ export async function enablePush(userId) {
   if (saveErr) throw saveErr
 }
 
+// Every time Hera opens: if this phone allowed notifications, make sure Hera's server still has
+// its current address. Phones replace or drop these quietly (an iPhone update, an app reinstall),
+// and without this the reminders just stop. Never asks for permission; returns what it found.
+export async function syncPush(userId) {
+  try {
+    if (pushSupport() !== 'granted' || !userId) return 'off'
+    const reg = await navigator.serviceWorker.ready
+    let sub = await reg.pushManager.getSubscription()
+    if (!sub) {
+      const { data } = await supabase.functions.invoke('hera-nudge', { body: { action: 'public_key' } })
+      if (!data?.publicKey) return 'off'
+      try {
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(data.publicKey) })
+      } catch {
+        return 'needs_tap' // some phones only allow this after a tap
+      }
+    }
+    const j = sub.toJSON()
+    await supabase.from('push_subscriptions')
+      .upsert({ user_id: userId, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' })
+    return 'on'
+  } catch {
+    return 'off'
+  }
+}
+
 export async function disablePush() {
   const sub = await currentSubscription()
   if (!sub) return

@@ -48,7 +48,7 @@ Deno.test('hera-nudge', async (t) => {
   })
   await t.step('sends the due reminder to her phone and chat', async () => {
     const r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
-    eq(r.json, { checked: 1, sent: 1, partners: 1 })
+    eq(r.json, { checked: 1, phones: 2, sent: 1, delivered: 1, partners: 1, failed: 0 })
     eq(pushes.length, 2)
     const payload = JSON.parse(pushes[0]); eq(payload.title, 'Hera'); eq(payload.tag, 'period_heads_up')
     assert(payload.body.startsWith('Hey Pran!'), payload.body)
@@ -110,5 +110,23 @@ Deno.test('hera-nudge', async (t) => {
     phoneStatus = 410
     await call({ action: 'test' }, { Authorization: 'Bearer good' })
     eq(db.push_subscriptions.filter((s: any) => s.user_id === 'u1').length, 0)
+  })
+
+  await t.step("one person's error doesn't stop everyone else's reminders", async () => {
+    // Meera's profile is broken in a way that crashes her check; Divya's is fine and due today.
+    for (const id of ['u2', 'u3']) {
+      db.profiles.push({ id, name: id === 'u2' ? 'Meera' : 'Divya', life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5,
+        tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '00:00', quiet_start: '00:00', quiet_end: '00:00', checkin_day: 9, podcast_picks: false, onboarded_at: 'x' })
+      db.cycle_logs.push({ user_id: id, log_date: back(26), kind: 'period_start' })
+      db.push_subscriptions.push({ id: id === 'u2' ? 902 : 903, user_id: id, endpoint: 'https://push.example/' + id,
+        p256dh: phone.getPublicKey('base64url'), auth: authSecret.toString('base64url') })
+    }
+    Object.defineProperty(db.profiles.find((p: { id: string }) => p.id === 'u2'), 'name', { get() { throw new Error('broken profile') } })
+    const before = pushes.length
+    const r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
+    eq(r.status, 200)
+    eq(r.json.failed, 1)
+    eq(r.json.sent, 1)
+    assert(pushes.slice(before).some(p => p.includes('Divya')), 'Divya still got her reminder')
   })
 })

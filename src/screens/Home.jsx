@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { syncPush } from '../lib/push'
 import Today from './Today.jsx'
 import Chat from './Chat.jsx'
 import MyCycle from './MyCycle.jsx'
@@ -16,6 +17,8 @@ export default function Home({ session, profile, onProfileChange, onDeleted }) {
   const [tab, setTab] = useState(() => { try { return sessionStorage.getItem('hera-tab') || 'today' } catch { return 'today' } })
   const [version, setVersion] = useState(0) // bumps when something is logged, so other tabs refresh
   const go = t => { setTab(t); try { sessionStorage.setItem('hera-tab', t) } catch { /* private mode */ } }
+  // Keep this phone's reminders connected (heals subscriptions phones drop quietly).
+  useEffect(() => { syncPush(session.user.id) }, [session.user.id])
 
   return (
     <div className="shell">
