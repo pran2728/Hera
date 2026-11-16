@@ -48,7 +48,7 @@ Deno.test('hera-nudge', async (t) => {
   })
   await t.step('sends the due reminder to her phone and chat', async () => {
     const r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
-    eq(r.json, { checked: 1, phones: 2, sent: 1, delivered: 1, partners: 1, failed: 0 })
+    eq(r.json, { checked: 1, phones: 2, sent: 1, delivered: 1, partners: 1, failed: 0, refused: [] })
     eq(pushes.length, 2)
     const payload = JSON.parse(pushes[0]); eq(payload.title, 'Hera'); eq(payload.tag, 'period_heads_up')
     assert(payload.body.startsWith('Hey Pran!'), payload.body)
@@ -95,7 +95,7 @@ Deno.test('hera-nudge', async (t) => {
   })
   await t.step('test notification for a signed-in user', async () => {
     const r = await call({ action: 'test' }, { Authorization: 'Bearer good' })
-    eq(r.json, { devices: 1, delivered: 1 }); assert(pushes.at(-1)!.includes('how my reminders will look'))
+    eq(r.json, { devices: 1, delivered: 1, refused: [] }); assert(pushes.at(-1)!.includes('how my reminders will look'))
     eq((await call({ action: 'test' }, { Authorization: 'Bearer bad' })).status, 401)
   })
   await t.step('delete account removes her login and everything linked to it', async () => {
@@ -128,5 +128,20 @@ Deno.test('hera-nudge', async (t) => {
     eq(r.json.failed, 1)
     eq(r.json.sent, 1)
     assert(pushes.slice(before).some(p => p.includes('Divya')), 'Divya still got her reminder')
+  })
+
+  await t.step("a phone's push service refusing is reported, not hidden", async () => {
+    db.profiles.push({ id: 'u4', name: 'Asha', life_stage: 'cycles', cycle_length: 28, cycle_length_known: true, period_length: 5,
+      tone: 'bestie', timezone: 'Asia/Kolkata', nudge_time: '00:00', quiet_start: '00:00', quiet_end: '00:00', checkin_day: 9, podcast_picks: false, onboarded_at: 'x' })
+    db.cycle_logs.push({ user_id: 'u4', log_date: back(26), kind: 'period_start' })
+    db.push_subscriptions.push({ id: 904, user_id: 'u4', endpoint: 'https://push.example/u4',
+      p256dh: phone.getPublicKey('base64url'), auth: authSecret.toString('base64url') })
+    phoneStatus = 403
+    const r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
+    phoneStatus = 201
+    eq(r.json.sent, 1)
+    eq(r.json.delivered, 0)
+    assert(r.json.refused.some((x: string) => x.startsWith('push.example 403')), JSON.stringify(r.json.refused))
+    assert(db.push_subscriptions.some((s: { id: number }) => s.id === 904), 'a refusal keeps the subscription')
   })
 })

@@ -29,7 +29,9 @@ export function NotificationsSwitch({ userId }) {
     setBusy(true); setNote('')
     const { data, error } = await sendTestPush()
     setNote(error ? "Couldn't send a test. Is the hera-nudge function deployed?"
-      : data.delivered ? 'Sent! It should pop up in a few seconds.' : 'No device is signed up yet. Turn reminders on first.')
+      : data.delivered ? 'Sent! It should pop up in a few seconds.'
+      : data.refused?.length ? `Your phone's notification service refused it: ${data.refused[0]}. Turn reminders off and on again; if it still fails, send this message to Pran.`
+      : 'No device is signed up yet. Turn reminders on first.')
     setBusy(false)
   }
 

@@ -23,6 +23,30 @@ function keyBytes(base64url) {
   return Uint8Array.from(raw, c => c.charCodeAt(0))
 }
 
+function sameKey(sub, publicKey) {
+  try {
+    const have = new Uint8Array(sub.options.applicationServerKey)
+    const want = keyBytes(publicKey)
+    return have.length === want.length && have.every((b, i) => b === want[i])
+  } catch {
+    return true // the browser doesn't tell us: assume it's fine
+  }
+}
+
+// Get this phone's subscription, made with Hera's CURRENT key. A subscription made with an
+// older key is refused by every push service, so replace it.
+async function freshSubscription(reg, publicKey) {
+  let sub = await reg.pushManager.getSubscription()
+  if (sub && !sameKey(sub, publicKey)) {
+    const old = sub.endpoint
+    await sub.unsubscribe().catch(() => {})
+    await supabase.from('push_subscriptions').delete().eq('endpoint', old)
+    sub = null
+  }
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(publicKey) })
+  return sub
+}
+
 export async function currentSubscription() {
   if (!('serviceWorker' in navigator)) return null
   const reg = await navigator.serviceWorker.ready
@@ -35,10 +59,7 @@ export async function enablePush(userId) {
   const { data, error } = await supabase.functions.invoke('hera-nudge', { body: { action: 'public_key' } })
   if (error || !data?.publicKey) throw new Error('no_key')
   const reg = await navigator.serviceWorker.ready
-  let sub = await reg.pushManager.getSubscription()
-  if (!sub) {
-    sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(data.publicKey) })
-  }
+  const sub = await freshSubscription(reg, data.publicKey)
   const j = sub.toJSON()
   const { error: saveErr } = await supabase.from('push_subscriptions')
     .upsert({ user_id: userId, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth }, { onConflict: 'endpoint' })
@@ -52,15 +73,13 @@ export async function syncPush(userId) {
   try {
     if (pushSupport() !== 'granted' || !userId) return 'off'
     const reg = await navigator.serviceWorker.ready
-    let sub = await reg.pushManager.getSubscription()
-    if (!sub) {
-      const { data } = await supabase.functions.invoke('hera-nudge', { body: { action: 'public_key' } })
-      if (!data?.publicKey) return 'off'
-      try {
-        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(data.publicKey) })
-      } catch {
-        return 'needs_tap' // some phones only allow this after a tap
-      }
+    const { data } = await supabase.functions.invoke('hera-nudge', { body: { action: 'public_key' } })
+    if (!data?.publicKey) return 'off'
+    let sub
+    try {
+      sub = await freshSubscription(reg, data.publicKey)
+    } catch {
+      return 'needs_tap' // some phones only allow this after a tap
     }
     const j = sub.toJSON()
     await supabase.from('push_subscriptions')

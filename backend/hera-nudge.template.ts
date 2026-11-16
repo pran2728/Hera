@@ -68,8 +68,17 @@ async function pushTo(sub: Sub, payload: Record<string, string>, keys: { publicK
   if (res.status === 404 || res.status === 410) {
     await admin.from('push_subscriptions').delete().eq('id', sub.id) // phone unsubscribed or app removed
   }
+  if (!res.ok) {
+    // Record WHY the phone's push service refused, so the logs and the test button can say it.
+    const reason = `${new URL(sub.endpoint).host} ${res.status} ${(await res.text().catch(() => '')).slice(0, 120)}`.trim()
+    pushProblems.push(reason)
+    console.error('push refused:', reason)
+  }
   return res.ok
 }
+
+// Refusals from push services during the current request (reset at the start of each one).
+let pushProblems: string[] = []
 
 async function pushAll(subs: Sub[], payload: Record<string, string>, keys: { publicKey: string; privateKey: string }, urgent = false) {
   let ok = 0
@@ -96,6 +105,7 @@ async function periodStarts(userId: string) {
 }
 
 async function runBatch(now: Date) {
+  pushProblems = []
   const keys = await vapidKeys()
   const { data: subs } = await admin.from('push_subscriptions').select('*')
   const byUser = new Map<string, Sub[]>()
@@ -165,7 +175,8 @@ async function runBatch(now: Date) {
     }
   }
   // phones = devices with notifications on; delivered = phones that accepted today's pushes
-  return { checked: (profiles ?? []).length, phones: (subs ?? []).length, sent: count, delivered, partners: partnerCount, failed }
+  return { checked: (profiles ?? []).length, phones: (subs ?? []).length, sent: count, delivered, partners: partnerCount, failed,
+    refused: [...new Set(pushProblems)].slice(0, 5) }
 }
 
 // She told Hera she's not okay: tell her partner to check on her (never what she said).
@@ -226,9 +237,10 @@ Deno.serve(async (req) => {
       }
       if (body.action === 'partner_view') return json(await partnerScreen(user.id))
       if (body.action === 'crisis') return json(await alertPartner(user.id))
+      pushProblems = []
       const { data: subs } = await admin.from('push_subscriptions').select('*').eq('user_id', user.id)
       const ok = await pushAll((subs ?? []) as Sub[], { title: 'Hera', body: "This is how my reminders will look 💜", tag: 'test', url: '/' }, await vapidKeys())
-      return json({ devices: (subs ?? []).length, delivered: ok })
+      return json({ devices: (subs ?? []).length, delivered: ok, refused: [...new Set(pushProblems)] })
     }
 
     if (body.action === 'run') {
