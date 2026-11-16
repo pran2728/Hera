@@ -144,4 +144,28 @@ Deno.test('hera-nudge', async (t) => {
     assert(r.json.refused.some((x: string) => x.startsWith('push.example 403')), JSON.stringify(r.json.refused))
     assert(db.push_subscriptions.some((s: { id: number }) => s.id === 904), 'a refusal keeps the subscription')
   })
+
+  await t.step('9 am report goes to Pran once, with counts only', async () => {
+    db.hera_settings.push({ key: 'report_to', value: 'u4' }) // Asha's phone is still signed up
+    const before = pushes.length
+    // 8:45 India time: no report yet
+    Deno.env.set('HERA_TEST_NOW', today + 'T03:15:00Z')
+    let r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
+    assert(!r.json.report, 'no report before 9')
+    // 9:00 India time: the report
+    Deno.env.set('HERA_TEST_NOW', today + 'T03:30:00Z')
+    r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
+    assert(r.json.report, 'report at 9')
+    const m = r.json.report.match(/Reminders so far today: (\d+) of (\d+) people/)
+    assert(m && Number(m[1]) <= Number(m[2]), r.json.report)
+    assert(/Reached \d+ of \d+ phones/.test(r.json.report), r.json.report)
+    const sentNow = pushes.slice(before).filter(p => p.includes('9 am report'))
+    eq(sentNow.length, 1)
+    assert(!/Pran|Divya|Asha|Meera/.test(r.json.report), 'no names in the report')
+    // 9:15 run the same day: not again
+    Deno.env.set('HERA_TEST_NOW', today + 'T03:44:00Z')
+    r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
+    assert(!r.json.report, 'only once a day')
+    Deno.env.delete('HERA_TEST_NOW')
+  })
 })

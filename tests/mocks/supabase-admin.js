@@ -15,6 +15,7 @@ class Q {
   upsert(o) { this.op = 'upsert'; this.rows = Array.isArray(o) ? o : [o]; return this }
   insert(o) { this.op = 'insert'; this.rows = Array.isArray(o) ? o : [o]; return this }
   delete() { this.op = 'delete'; return this }
+  update(o) { this.op = 'update'; this.patch = o; return this }
   then(res, rej) { return Promise.resolve(this.run()).then(res, rej) }
   run() {
     const match = r => this.f.every(f => f(r))
@@ -34,6 +35,7 @@ class Q {
       }
       return { error: null }
     }
+    if (this.op === 'update') { db[this.t].filter(match).forEach(r => Object.assign(r, this.patch)); return { error: null } }
     if (this.op === 'delete') { db[this.t] = db[this.t].filter(r => !match(r)); return { error: null } }
     let out = db[this.t].filter(match)
     if (this.max) out = out.slice(0, this.max)

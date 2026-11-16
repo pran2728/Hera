@@ -77,6 +77,50 @@ async function pushTo(sub: Sub, payload: Record<string, string>, keys: { publicK
   return res.ok
 }
 
+// ---- The 9 am report for Hera's admin (Pran) ----
+// Sent once a day, in the run at 9:00 India time, to the account named in hera_settings 'report_to'.
+// Counts only: never who got which reminder or what it said.
+async function morningReport(now: Date, keys: { publicKey: string; privateKey: string }) {
+  const clock = localClock(now, 'Asia/Kolkata')
+  if (clock.minutes < 9 * 60 || clock.minutes >= 9 * 60 + 15) return null
+  const to = await setting('report_to')
+  if (!to) return null
+  const today = clock.date
+  // Claim today's report first, so a second run can't send it twice.
+  const { error } = await admin.from('nudges_sent').insert({ user_id: to, kind: 'admin_report', for_date: today })
+  if (error) return null
+
+  const [{ data: subs }, { data: rows }, { data: links }] = await Promise.all([
+    admin.from('push_subscriptions').select('*'),
+    admin.from('nudges_sent').select('*').eq('for_date', today),
+    admin.from('partner_links').select('*').not('partner_id', 'is', null)
+  ])
+  const all = (rows ?? []).filter((r: { kind: string }) => r.kind !== 'admin_report')
+  const partnerRow = (r: { kind: string }) => r.kind.startsWith('partner_')
+  // Women = people with notifications on who aren't only someone's partner.
+  const partnerIds = new Set((links ?? []).map((l: { partner_id: string }) => l.partner_id))
+  const womenIds = new Set((subs ?? []).map((s: { user_id: string }) => s.user_id).filter((id: string) => !partnerIds.has(id)))
+  const women = womenIds.size
+  const reminded = new Set(all.filter((r: { kind: string; user_id: string }) => !partnerRow(r) && womenIds.has(r.user_id))
+    .map((r: { user_id: string }) => r.user_id)).size
+  const partnersReminded = new Set(all.filter(partnerRow).map((r: { user_id: string }) => r.user_id)).size
+  const tried = all.reduce((n: number, r: { phones?: number }) => n + (r.phones ?? 0), 0)
+  const reached = all.reduce((n: number, r: { delivered?: number }) => n + (r.delivered ?? 0), 0)
+
+  const lines = [`Reminders so far today: ${reminded} of ${women} ${women === 1 ? 'person' : 'people'} with notifications on`]
+  if (partnersReminded) lines[0] += ` (+${partnersReminded} partner${partnersReminded === 1 ? '' : 's'})`
+  lines.push(tried ? `Reached ${reached} of ${tried} phones${reached < tried ? ' ⚠️' : ' ✅'}` : 'No phones to reach yet')
+  if (women > reminded) lines.push(`${women - reminded} not due yet (later time or nothing to say today)`)
+  const refused = [...new Set(pushProblems)]
+  if (refused.length) lines.push(`Refused: ${refused[0]}`)
+  const body = lines.join('\n')
+
+  const { data: mine } = await admin.from('push_subscriptions').select('*').eq('user_id', to)
+  await pushAll((mine ?? []) as Sub[], { title: '☀️ Hera 9 am report', body, tag: 'admin_report', url: '/' }, keys)
+  console.log('morning report:', body.replace(/\n/g, ' | '))
+  return body
+}
+
 // Refusals from push services during the current request (reset at the start of each one).
 let pushProblems: string[] = []
 
@@ -148,7 +192,11 @@ async function runBatch(now: Date) {
       if (claimErr) continue
 
       await admin.from('messages').insert({ user_id: p.id, role: 'hera', content: nudge.text })
-      delivered += await pushAll(byUser.get(p.id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      const phones = byUser.get(p.id) ?? []
+      const ok = await pushAll(phones, { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      delivered += ok
+      await admin.from('nudges_sent').update({ phones: phones.length, delivered: ok })
+        .eq('user_id', p.id).eq('kind', nudge.kind).eq('for_date', nudge.for_date)
       count++
     } catch (e) {
       failed++
@@ -167,15 +215,22 @@ async function runBatch(now: Date) {
       if (!nudge) continue
       const { error: claimErr } = await admin.from('nudges_sent').insert({ user_id: link.partner_id, kind: nudge.kind, for_date: nudge.for_date })
       if (claimErr) continue
-      await pushAll(byUser.get(link.partner_id) ?? [], { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      const phones = byUser.get(link.partner_id) ?? []
+      const ok = await pushAll(phones, { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      await admin.from('nudges_sent').update({ phones: phones.length, delivered: ok })
+        .eq('user_id', link.partner_id).eq('kind', nudge.kind).eq('for_date', nudge.for_date)
       partnerCount++
     } catch (e) {
       failed++
       console.error('partner nudge failed:', String(e).slice(0, 300))
     }
   }
+  // Pran's 9 am report on how today's reminders went (only in the run at 9:00 India time).
+  let report: string | null = null
+  try { report = await morningReport(now, keys) } catch (e) { console.error('morning report failed:', String(e).slice(0, 200)) }
+
   // phones = devices with notifications on; delivered = phones that accepted today's pushes
-  return { checked: (profiles ?? []).length, phones: (subs ?? []).length, sent: count, delivered, partners: partnerCount, failed,
+  return { ...(report ? { report } : {}), checked: (profiles ?? []).length, phones: (subs ?? []).length, sent: count, delivered, partners: partnerCount, failed,
     refused: [...new Set(pushProblems)].slice(0, 5) }
 }
 
@@ -246,7 +301,8 @@ Deno.serve(async (req) => {
     if (body.action === 'run') {
       const secret = await setting('cron_secret')
       if (!secret || req.headers.get('x-cron-secret') !== secret) return json({ error: 'forbidden' }, 403)
-      const result = await runBatch(new Date())
+      // HERA_TEST_NOW lets the tests run a batch at a chosen time; it is never set in Supabase.
+      const result = await runBatch(Deno.env.get('HERA_TEST_NOW') ? new Date(Deno.env.get('HERA_TEST_NOW')!) : new Date())
       console.log('nudge run:', JSON.stringify(result))
       return json(result)
     }

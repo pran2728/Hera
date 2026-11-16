@@ -70,7 +70,7 @@ select * from (values
   (13, 'Partner invites created',            (select count(*) from public.partner_links)::text),
   (14, 'Partners connected',                 (select count(*) from public.partner_links where partner_id is not null)::text),
   (15, 'Invite acceptance rate',             (select case when count(*) = 0 then '-' else round(100.0 * count(partner_id) / count(*))::text || '%' end from public.partner_links)),
-  (16, 'Reminders sent (last 7 days)',       (select count(*) from public.nudges_sent where sent_at > now() - interval '7 days')::text),
+  (16, 'Reminders sent (last 7 days)',       (select count(*) from public.nudges_sent where kind <> 'admin_report' and sent_at > now() - interval '7 days')::text),
   (17, 'Partner crisis alerts (all time)',   (select count(*) from public.nudges_sent where kind = 'partner_crisis')::text),
   (18, 'Feedback reports (new / total)',     (select count(*) filter (where status = 'new')::text || ' / ' || count(*)::text from public.feedback))
 ) as k(n, metric, value)
@@ -96,10 +96,23 @@ union all select 'Diet', coalesce(diet, '-'), count(*) from public.profiles wher
 union all select 'Podcast picks', case when podcast_picks is false then 'off' else 'on' end, count(*) from public.profiles where onboarded_at is not null group by 1, 2
 union all select 'Daily tips', case when daily_tips then 'on' else 'off' end, count(*) from public.profiles where onboarded_at is not null group by 1, 2
 union all select 'Logged with', case when kind in ('period_start','period_end') then 'period dates' else kind end, count(*) from public.cycle_logs group by 1, 2
-union all select 'Reminder type sent', kind, count(*) from public.nudges_sent group by kind
+union all select 'Reminder type sent', kind, count(*) from public.nudges_sent where kind <> 'admin_report' group by kind
 order by 1, 3 desc;
 
--- 5. The bug list, newest first (with who sent it, so you can follow up).
+-- 5. Reminders per day (last 30 days): who got one, and how many phones it actually reached.
+--    "phones_reached" below "phones_tried" means some phones refused: check hera-nudge's Logs for "push refused".
+create or replace view admin.reminders as
+select d::date as day,
+  (select count(distinct user_id) from public.push_subscriptions)                                                   as people_with_notifications_on,
+  (select count(distinct user_id) from public.nudges_sent where for_date = d and kind not like 'partner\_%' and kind <> 'admin_report') as women_reminded,
+  (select count(distinct user_id) from public.nudges_sent where for_date = d and kind like 'partner\_%')               as partners_reminded,
+  (select coalesce(sum(phones), 0) from public.nudges_sent where for_date = d and kind <> 'admin_report')            as phones_tried,
+  (select coalesce(sum(delivered), 0) from public.nudges_sent where for_date = d and kind <> 'admin_report')         as phones_reached,
+  (select count(*) > 0 from public.nudges_sent where for_date = d and kind = 'admin_report')                         as report_sent
+from generate_series(current_date - 29, current_date, interval '1 day') d
+order by day desc;
+
+-- 6. The bug list, newest first (with who sent it, so you can follow up).
 create or replace view admin.feedback as
 select f.created_at, u.email, f.category, f.status, f.note, left(f.hera_reply, 200) as hera_reply
 from public.feedback f join auth.users u on u.id = f.user_id

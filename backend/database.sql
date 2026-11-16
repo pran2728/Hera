@@ -80,6 +80,10 @@ create table if not exists public.nudges_sent (
   primary key (user_id, kind, for_date)
 );
 
+-- How many phones each reminder was sent to, and how many accepted it (for the 9 am report).
+alter table public.nudges_sent add column if not exists phones int;
+alter table public.nudges_sent add column if not exists delivered int;
+
 -- 3d. Hera's private settings (notification keys, schedule secret). No app user can read this.
 create table if not exists public.hera_settings (
   key    text primary key,
