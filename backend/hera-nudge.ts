@@ -839,6 +839,43 @@ async function pushTo(sub: Sub, payload: Record<string, string>, keys: { publicK
   return res.ok
 }
 
+// ---- One-off announcement to everyone with notifications on ----
+// "{name}" in the text becomes each person's name (or is dropped if she has none).
+async function broadcast(text: string, now: Date) {
+  pushProblems = []
+  const keys = await vapidKeys()
+  const today = localClock(now, 'Asia/Kolkata').date
+  const { data: subs } = await admin.from('push_subscriptions').select('*')
+  const byUser = new Map<string, Sub[]>()
+  for (const s of (subs ?? []) as Sub[]) byUser.set(s.user_id, [...(byUser.get(s.user_id) ?? []), s])
+  const { data: profiles } = await admin.from('profiles').select('*').in('id', [...byUser.keys()])
+  const profileOf = new Map((profiles ?? []).map((p: { id: string }) => [p.id, p]))
+
+  let people = 0, delivered = 0, skipped = 0
+  for (const [userId, phones] of byUser) {
+    try {
+      // Claim first: running the same broadcast twice in a day sends nothing the second time.
+      const { error } = await admin.from('nudges_sent').insert({ user_id: userId, kind: 'broadcast', for_date: today })
+      if (error) { skipped++; continue }
+      const profile = profileOf.get(userId) as { name?: string } | undefined
+      const name = profile?.name?.trim() || ''
+      const msg = text.replace(/,?\s*\{name\}/g, m => name ? m.replace('{name}', name) : '')
+      // Partners have no chat with Hera; only women get it in their chat too.
+      if (profile) await admin.from('messages').insert({ user_id: userId, role: 'hera', content: msg })
+      const ok = await pushAll(phones, { title: 'Hera', body: msg, tag: 'broadcast', url: '/' }, keys)
+      await admin.from('nudges_sent').update({ phones: phones.length, delivered: ok })
+        .eq('user_id', userId).eq('kind', 'broadcast').eq('for_date', today)
+      delivered += ok
+      people++
+    } catch (e) {
+      console.error('broadcast failed for one user:', String(e).slice(0, 200))
+    }
+  }
+  const result = { people, phones: (subs ?? []).length, delivered, already_sent_today: skipped, refused: [...new Set(pushProblems)].slice(0, 5) }
+  console.log('broadcast:', JSON.stringify(result))
+  return result
+}
+
 // ---- The 9 am report for Hera's admin (Pran) ----
 // Sent once a day, in the run at 9:00 India time, to the account named in hera_settings 'report_to'.
 // Counts only: never who got which reminder or what it said.
@@ -1058,6 +1095,16 @@ Deno.serve(async (req) => {
       const { data: subs } = await admin.from('push_subscriptions').select('*').eq('user_id', user.id)
       const ok = await pushAll((subs ?? []) as Sub[], { title: 'Hera', body: "This is how my reminders will look 💜", tag: 'test', url: '/' }, await vapidKeys())
       return json({ devices: (subs ?? []).length, delivered: ok, refused: [...new Set(pushProblems)] })
+    }
+
+    // One-off announcement from Pran to everyone with notifications on (run from the SQL Editor; see README).
+    // Same secret as the schedule, so no app user can trigger it. Once per day: a second call the same day is skipped.
+    if (body.action === 'broadcast') {
+      const secret = await setting('cron_secret')
+      if (!secret || req.headers.get('x-cron-secret') !== secret) return json({ error: 'forbidden' }, 403)
+      const text = String(body.text ?? '').trim()
+      if (!text || text.length > 300) return json({ error: 'text must be 1-300 characters' }, 400)
+      return json(await broadcast(text, new Date()))
     }
 
     if (body.action === 'run') {

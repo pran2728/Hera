@@ -168,4 +168,20 @@ Deno.test('hera-nudge', async (t) => {
     assert(!r.json.report, 'only once a day')
     Deno.env.delete('HERA_TEST_NOW')
   })
+
+  await t.step('broadcast: personalised, once a day, secret required', async () => {
+    eq((await call({ action: 'broadcast', text: 'Hi {name}' })).status, 403)
+    const before = pushes.length
+    const msg = 'Good morning, {name}! ☀️ How are you really doing? 💜'
+    const r = await call({ action: 'broadcast', text: msg }, { 'x-cron-secret': 's3cret' })
+    eq(r.status, 200)
+    assert(r.json.people >= 1, JSON.stringify(r.json)) // Meera's deliberately broken profile is skipped
+    const got = pushes.slice(before)
+    assert(got.some(p => p.includes('Good morning, Asha!')), 'name filled in')
+    assert(!got.some(p => p.includes('{name}')), 'no raw placeholder')
+    assert(db.messages.some((m: { user_id: string; content: string }) => m.user_id === 'u4' && m.content.startsWith('Good morning, Asha!')), 'in her chat')
+    const again = await call({ action: 'broadcast', text: msg }, { 'x-cron-secret': 's3cret' })
+    eq(again.json.people, 0)
+    assert(again.json.already_sent_today >= r.json.people, 'nobody is sent twice')
+  })
 })
