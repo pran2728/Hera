@@ -87,19 +87,23 @@ async function broadcast(text: string, now: Date) {
   const byUser = new Map<string, Sub[]>()
   for (const s of (subs ?? []) as Sub[]) byUser.set(s.user_id, [...(byUser.get(s.user_id) ?? []), s])
   const { data: profiles } = await admin.from('profiles').select('*').in('id', [...byUser.keys()])
-  const profileOf = new Map((profiles ?? []).map((p: { id: string }) => [p.id, p]))
+  // Only women who finished Hera's setup; partners never do, and get only partner reminders.
+  const profileOf = new Map((profiles ?? []).filter((p: { onboarded_at?: string | null }) => p.onboarded_at)
+    .map((p: { id: string }) => [p.id, p]))
 
   let people = 0, delivered = 0, skipped = 0
+  let partnersSkipped = 0
   for (const [userId, phones] of byUser) {
     try {
+      // Only women who use Hera themselves: partners have no Hera profile and get only partner reminders.
+      if (!profileOf.has(userId)) { partnersSkipped++; continue }
       // Claim first: running the same broadcast twice in a day sends nothing the second time.
       const { error } = await admin.from('nudges_sent').insert({ user_id: userId, kind: 'broadcast', for_date: today })
       if (error) { skipped++; continue }
       const profile = profileOf.get(userId) as { name?: string } | undefined
       const name = profile?.name?.trim() || ''
       const msg = text.replace(/,?\s*\{name\}/g, m => name ? m.replace('{name}', name) : '')
-      // Partners have no chat with Hera; only women get it in their chat too.
-      if (profile) await admin.from('messages').insert({ user_id: userId, role: 'hera', content: msg })
+      await admin.from('messages').insert({ user_id: userId, role: 'hera', content: msg })
       const ok = await pushAll(phones, { title: 'Hera', body: msg, tag: 'broadcast', url: '/' }, keys)
       await admin.from('nudges_sent').update({ phones: phones.length, delivered: ok })
         .eq('user_id', userId).eq('kind', 'broadcast').eq('for_date', today)
@@ -109,7 +113,7 @@ async function broadcast(text: string, now: Date) {
       console.error('broadcast failed for one user:', String(e).slice(0, 200))
     }
   }
-  const result = { people, phones: (subs ?? []).length, delivered, already_sent_today: skipped, refused: [...new Set(pushProblems)].slice(0, 5) }
+  const result = { people, phones: (subs ?? []).length, delivered, already_sent_today: skipped, partners_skipped: partnersSkipped, refused: [...new Set(pushProblems)].slice(0, 5) }
   console.log('broadcast:', JSON.stringify(result))
   return result
 }
