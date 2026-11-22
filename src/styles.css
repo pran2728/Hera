@@ -350,7 +350,7 @@ button.phase { border: 0; cursor: pointer; font-family: inherit; }
 .quick-section { display: flex; flex-direction: column; gap: 10px; align-items: center; }
 .quick { display: flex; flex-wrap: wrap; gap: 7px; justify-content: center; }
 .quick-chip { font-size: .88rem; padding: 9px 14px; border: 0; background: var(--hera-bubble); color: var(--chip-text); }
-.quick-chip.key { background: var(--strong); color: var(--on-strong); }
+.quick-chip.key { background: var(--card); color: var(--plum); box-shadow: inset 0 0 0 1.5px var(--plum); } /* stands out without looking already pressed */
 .quick-chip.on { background: var(--plum); color: var(--on-plum); }
 .quick-pick { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--card); }
 .logged-today { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; }

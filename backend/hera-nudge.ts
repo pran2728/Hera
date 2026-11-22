@@ -924,6 +924,9 @@ async function morningReport(now: Date, keys: { publicKey: string; privateKey: s
   return body
 }
 
+// The heading on her daily reminders (partners' reminders and one-off messages still say "Hera").
+const DAILY_TITLE = 'Your day at a glance'
+
 // Refusals from push services during the current request (reset at the start of each one).
 let pushProblems: string[] = []
 
@@ -996,7 +999,7 @@ async function runBatch(now: Date) {
 
       await admin.from('messages').insert({ user_id: p.id, role: 'hera', content: nudge.text })
       const phones = byUser.get(p.id) ?? []
-      const ok = await pushAll(phones, { title: 'Hera', body: nudge.text, tag: nudge.kind, url: '/' }, keys)
+      const ok = await pushAll(phones, { title: DAILY_TITLE, body: nudge.text, tag: nudge.kind, url: '/' }, keys)
       delivered += ok
       await admin.from('nudges_sent').update({ phones: phones.length, delivered: ok })
         .eq('user_id', p.id).eq('kind', nudge.kind).eq('for_date', nudge.for_date)
@@ -1097,7 +1100,7 @@ Deno.serve(async (req) => {
       if (body.action === 'crisis') return json(await alertPartner(user.id))
       pushProblems = []
       const { data: subs } = await admin.from('push_subscriptions').select('*').eq('user_id', user.id)
-      const ok = await pushAll((subs ?? []) as Sub[], { title: 'Hera', body: "This is how my reminders will look 💜", tag: 'test', url: '/' }, await vapidKeys())
+      const ok = await pushAll((subs ?? []) as Sub[], { title: DAILY_TITLE, body: "This is how my reminders will look 💜", tag: 'test', url: '/' }, await vapidKeys())
       return json({ devices: (subs ?? []).length, delivered: ok, refused: [...new Set(pushProblems)] })
     }
 

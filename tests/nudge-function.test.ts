@@ -50,7 +50,7 @@ Deno.test('hera-nudge', async (t) => {
     const r = await call({ action: 'run' }, { 'x-cron-secret': 's3cret' })
     eq(r.json, { checked: 1, phones: 2, sent: 1, delivered: 1, partners: 1, failed: 0, refused: [] })
     eq(pushes.length, 2)
-    const payload = JSON.parse(pushes[0]); eq(payload.title, 'Hera'); eq(payload.tag, 'period_heads_up')
+    const payload = JSON.parse(pushes[0]); eq(payload.title, 'Your day at a glance'); eq(payload.tag, 'period_heads_up')
     assert(payload.body.startsWith('Hey Pran!'), payload.body)
     eq(db.messages.length, 1); eq(db.messages[0].role, 'hera')
   })
