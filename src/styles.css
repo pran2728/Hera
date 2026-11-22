@@ -453,36 +453,3 @@ input[type=date] {
 }
 input[type=date]::-webkit-date-and-time-value { text-align: left; margin: 0; }
 .profile input[type=date] { min-height: 46px; }
-
-/* ---- Today: A's moon + B's prediction strip and phase card ---- */
-.moon-note { margin: 2px 0 0; font-size: .72rem; font-weight: 700; color: var(--muted); }
-.card-kicker { font-size: .72rem; font-weight: 800; letter-spacing: .08em; color: var(--kicker); }
-.next-period, .phase-card { display: flex; flex-direction: column; gap: 10px; }
-.np-head { display: flex; justify-content: space-between; align-items: center; }
-.np-chip { padding: 3px 10px; border-radius: 999px; background: var(--hera-bubble); color: var(--chip-text); font-size: .75rem; font-weight: 800; }
-.np-days { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; text-align: center; }
-.np-day { display: flex; flex-direction: column; gap: 4px; }
-.np-dow { font-size: .7rem; font-weight: 700; color: var(--muted); }
-.np-n { height: 34px; border-radius: 10px; display: grid; place-items: center; font-size: .85rem; font-weight: 800; color: var(--muted); }
-.np-n.likely { background: var(--hera-bubble); color: var(--chip-text); }
-.np-n.most { background: var(--strong); color: var(--on-strong); }
-.np-n.today { box-shadow: inset 0 0 0 2px var(--plum); color: var(--plum); }
-.np-note, .phase-explain { margin: 0; font-size: .8rem; font-weight: 700; line-height: 1.45; color: var(--muted); }
-.phase-name { margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 1.65rem; font-weight: 700; line-height: 1.05; color: var(--ink); }
-.phase-bar { position: relative; display: flex; gap: 3px; height: 10px; margin-top: 4px; }
-.phase-bar .seg { border-radius: 999px; }
-.phase-bar .seg-0 { background: #D9577A; }
-.phase-bar .seg-1 { background: var(--halo); }
-.phase-bar .seg-2 { background: var(--passed); }
-.phase-bar .seg-3 { background: var(--crescent); }
-.phase-marker { position: absolute; top: -4px; width: 18px; height: 18px; margin-left: -9px; border-radius: 50%; background: var(--plum); border: 3px solid var(--card); box-sizing: border-box; }
-.phase-labels { display: flex; gap: 3px; font-size: .66rem; font-weight: 700; color: var(--muted); }
-.phase-labels span { min-width: 0; overflow: visible; white-space: nowrap; }
-.phase-tips { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
-.phase-tips li { font-size: .84rem; font-weight: 700; color: var(--ink); padding-left: 16px; position: relative; }
-.phase-tips li::before { content: ''; position: absolute; left: 2px; top: .5em; width: 6px; height: 6px; border-radius: 50%; background: var(--strong); }
-.log-open { margin: 2px 0 4px; }
-.more-for-you { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
-.more-toggle { align-self: center; font-size: .85rem; }
-.phase-labels span:nth-child(3) { text-align: center; display: flex; justify-content: center; }
-.phase-labels span:nth-child(4) { text-align: right; }
