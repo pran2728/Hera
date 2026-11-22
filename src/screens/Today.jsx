@@ -9,6 +9,7 @@ import { quickItems, quickLog, undoLog, logLabel } from '../lib/quicklog'
 import { PodcastCard } from './PatternCards.jsx'
 import { StoryRow, StoryViewer } from './Stories.jsx'
 import { storiesFor } from '../lib/stories'
+import { predictionStrip, phaseCard, dayDate, dateRange } from '../lib/home'
 
 const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 const short = d => `${Number(d.slice(8))} ${MON[Number(d.slice(5, 7)) - 1]}`
@@ -43,17 +44,18 @@ function moonHero(cycle, profile, today) {
     return { n, at: n + 1, period: cycle.periodLength, center: cycle.day, kicker: `DAY ${cycle.day} · YOUR PERIOD IS LATE`,
       title: `${cycle.lateBy} days later than expected`, sub: 'Stress, travel and illness can all shift a cycle.', label: `Day ${cycle.day}, period late` }
   }
-  const until = daysBetween(today, cycle.nextPeriod.from)
-  const label = cycle.lateLuteal ? 'PMS DAYS' : PHASE_LABELS[cycle.phase].replace(' phase', '').toUpperCase()
+  const until = daysBetween(today, cycle.nextPeriod.expected)
+  const label = cycle.lateLuteal ? 'PMS DAYS' : PHASE_LABELS[cycle.phase].toUpperCase()
   const title = cycle.phase === 'menstrual'
     ? `Period day ${cycle.day}`
-    : until > 1 ? `Period in ${until} days` : until === 1 ? 'Period from tomorrow' : 'Period could start any day'
+    : until > 1 ? `Period in about ${until} days` : until === 1 ? 'Period likely tomorrow' : 'Period could start any day'
   const sub = cycle.phase === 'menstrual'
-    ? `Next one around ${short(cycle.nextPeriod.expected)}`
-    : profile.life_stage === 'ttc' || cycle.phase === 'follicular' || cycle.phase === 'ovulatory'
-      ? `Fertile window ${short(cycle.fertileWindow.from)} – ${short(cycle.fertileWindow.to)} (estimate)`
-      : `Expected ${short(cycle.nextPeriod.from)} – ${short(cycle.nextPeriod.to)}`
-  return { n, at: cycle.day, period: cycle.periodLength, center: cycle.day, kicker: `DAY ${cycle.day} · ${label}`, title, sub,
+    ? `Next one around ${dayDate(cycle.nextPeriod.expected)}`
+    : `Expected ${dayDate(cycle.nextPeriod.expected)} · likely ${dateRange(cycle.nextPeriod.from, cycle.nextPeriod.to)}`
+  const note = profile.life_stage === 'ttc' && cycle.phase !== 'luteal'
+    ? `Fertile window ${short(cycle.fertileWindow.from)} – ${short(cycle.fertileWindow.to)} (estimate)`
+    : `Based on ${cycle.basedOn}`
+  return { n, at: cycle.day, period: cycle.periodLength, center: cycle.day, kicker: `DAY ${cycle.day} · ${label}`, title, sub, note,
     label: `Day ${cycle.day} of a ${cycle.cycleLength}-day cycle` }
 }
 
@@ -89,9 +91,55 @@ function Hero({ cycle, profile, today }) {
       <span className="small-caps">{h.kicker}</span>
       <h2 className="moon-title">{h.title}</h2>
       <p className="moon-sub">{h.sub}</p>
+      {h.note && <p className="moon-note">{h.note}</p>}
     </section>
   )
 }
+
+// B's next-period strip: the week around the expected day.
+function NextPeriod({ strip }) {
+  return (
+    <section className="card next-period" aria-label="Next period">
+      <div className="np-head">
+        <span className="card-kicker">NEXT PERIOD</span>
+        <span className="np-chip">{strip.inDays > 1 ? `in ${strip.inDays} days` : strip.inDays === 1 ? 'tomorrow' : 'any day now'}</span>
+      </div>
+      <div className="np-days">
+        {strip.days.map(d => (
+          <div key={d.date} className="np-day">
+            <span className="np-dow" aria-hidden="true">{d.letter}</span>
+            <span className={`np-n ${d.level ?? ''} ${d.today ? 'today' : ''}`}
+                  aria-label={`${dayDate(d.date)}${d.level === 'most' ? ', most likely' : d.level ? ', likely' : ''}`}>{d.n}</span>
+          </div>
+        ))}
+      </div>
+      <p className="np-note">Likely {strip.range}.{strip.pmsFrom ? ` PMS days may start around ${dayDate(strip.pmsFrom)}.` : ''}</p>
+    </section>
+  )
+}
+
+// B's phase card: where she is in the cycle, what it means and what helps.
+function PhaseCard({ card }) {
+  return (
+    <section className="card phase-card" aria-label="Your phase">
+      <span className="card-kicker">{card.kicker}</span>
+      <h2 className="phase-name">{card.name}</h2>
+      {card.bar && (
+        <>
+          <div className="phase-bar" role="img" aria-label={`${card.name}`}>
+            {card.bar.seg.map((n, i) => <span key={i} className={`seg seg-${i}`} style={{ flex: n }} />)}
+            <span className="phase-marker" style={{ left: `${card.bar.marker * 100}%` }} />
+          </div>
+          <div className="phase-labels" aria-hidden="true">{card.bar.labels.map((l, i) => <span key={l} style={{ flex: card.bar.seg.at(i) }}>{l}</span>)}</div>
+        </>
+      )}
+      <p className="phase-explain">{card.explain}</p>
+      {card.tips.length > 0 && <ul className="phase-tips">{card.tips.map(t => <li key={t}>{t}</li>)}</ul>}
+    </section>
+  )
+}
+
+const readMore = () => { try { return localStorage.getItem('hera-more') === 'open' } catch { return false } }
 
 export default function Today({ session, profile, onProfileChange, active, onTalk, onLogged }) {
   const today = localToday()
@@ -103,6 +151,9 @@ export default function Today({ session, profile, onProfileChange, active, onTal
   const [busy, setBusy] = useState(false)
   const [story, setStory] = useState(null) // which story is open
   const [seenV, setSeenV] = useState(0)
+  const [logOpen, setLogOpen] = useState(false)
+  const [moreOpen, setMoreOpen] = useState(readMore)
+  const toggleMore = () => setMoreOpen(o => { try { localStorage.setItem('hera-more', o ? 'closed' : 'open') } catch { /* private mode */ } return !o })
 
   async function load() {
     const { data, error } = await withRetry(() => supabase.from('cycle_logs').select('id, log_date, kind, value, created_at')
@@ -141,6 +192,8 @@ export default function Today({ session, profile, onProfileChange, active, onTal
 
   const items = quickItems(profile, cycle)
   const stories = storiesFor(profile, cycle, today)
+  const strip = predictionStrip(cycle, today)
+  const phase = phaseCard(cycle, profile)
   return (
     <main className="cycle-page today">
       <header className="today-head">
@@ -150,32 +203,27 @@ export default function Today({ session, profile, onProfileChange, active, onTal
           ? `Happy birthday${profile.name ? `, ${profile.name.split(' ')[0]}` : ''} 🎂`
           : greetingFor(profile.name)}</p>
       </header>
-      <StoryRow stories={stories} today={today} onOpen={setStory} version={seenV} />
-      {story !== null && (
-        <StoryViewer stories={stories} start={story} today={today}
-                     onClose={() => { setStory(null); setSeenV(v => v + 1) }}
-                     onAnswer={async (kind, value) => { await log({ kind }, value) }} />
-      )}
       <Hero cycle={cycle} profile={profile} today={today} />
-
-      <section className="thought" aria-label="Today's thought">
-        <svg width="90" height="10" viewBox="0 0 90 10" aria-hidden="true"><path d="M0 5 H36 M54 5 H90" className="gold-stroke" /><path d="M45 0 L50 5 L45 10 L40 5 Z" className="gold-fill" /></svg>
-        <p className="thought-line">{lineFor(profile, cycle, today)}</p>
-      </section>
+      {strip && <NextPeriod strip={strip} />}
+      {phase && <PhaseCard card={phase} />}
 
       <section className="quick-section">
-        <h2 className="small-caps center">How are you today?</h2>
-        <div className="quick" role="group" aria-label="Quick log">
-          {items.map(it => (
-            <button key={it.id} type="button" className={`chip quick-chip ${it.kind === 'period_start' || it.kind === 'period_end' ? 'key' : ''} ${picking?.id === it.id ? 'on' : ''}`} disabled={busy}
-                    onClick={() => {
-                      if (!it.pick) return log(it)
-                      setPicking(picking?.id === it.id ? null : it)
-                      setTimeout(() => document.querySelector('.quick-pick')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50)
-                    }}>{it.label}</button>
-          ))}
-        </div>
-        {picking && (
+        <button type="button" className="primary wide log-open" aria-expanded={logOpen} onClick={() => setLogOpen(o => !o)}>
+          {logOpen ? 'Done' : 'How are you today?'}
+        </button>
+        {logOpen && (
+          <div className="quick" role="group" aria-label="Quick log">
+            {items.map(it => (
+              <button key={it.id} type="button" className={`chip quick-chip ${it.kind === 'period_start' || it.kind === 'period_end' ? 'key' : ''} ${picking?.id === it.id ? 'on' : ''}`} disabled={busy}
+                      onClick={() => {
+                        if (!it.pick) return log(it)
+                        setPicking(picking?.id === it.id ? null : it)
+                        setTimeout(() => document.querySelector('.quick-pick')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50)
+                      }}>{it.label}</button>
+            ))}
+          </div>
+        )}
+        {logOpen && picking && (
           <div className="quick-pick" role="group" aria-label={`${picking.label} level`}>
             <span className="muted small">{picking.id === 'drive' ? 'Your sex drive today:' : 'How bad?'}</span>
             {picking.pick.map(([label, v]) => <button key={v} type="button" className="chip small" onClick={() => log(picking, v)}>{label}</button>)}
@@ -195,12 +243,30 @@ export default function Today({ session, profile, onProfileChange, active, onTal
         <button type="button" className="link talk" onClick={onTalk}>Want to say more? Talk to Hera →</button>
       </section>
 
-      <section className="card">
-        <h2>Today's tip</h2>
-        <p className="tip">{dailyTip(profile, cycle, today)}</p>
+      <section className="more-for-you">
+        <button type="button" className="link more-toggle" aria-expanded={moreOpen} onClick={toggleMore}>
+          {moreOpen ? 'Hide stories, tip and listen pick ▴' : 'Stories, tip and listen pick ▾'}
+        </button>
+        {moreOpen && (
+          <>
+            <StoryRow stories={stories} today={today} onOpen={setStory} version={seenV} />
+            <section className="thought" aria-label="Today's thought">
+              <svg width="90" height="10" viewBox="0 0 90 10" aria-hidden="true"><path d="M0 5 H36 M54 5 H90" className="gold-stroke" /><path d="M45 0 L50 5 L45 10 L40 5 Z" className="gold-fill" /></svg>
+              <p className="thought-line">{lineFor(profile, cycle, today)}</p>
+            </section>
+            <section className="card">
+              <h2>Today's tip</h2>
+              <p className="tip">{dailyTip(profile, cycle, today)}</p>
+            </section>
+            {profile.podcast_picks !== false && <PodcastCard profile={profile} cycle={cycle} today={today} />}
+          </>
+        )}
+        {story !== null && (
+          <StoryViewer stories={stories} start={story} today={today}
+                       onClose={() => { setStory(null); setSeenV(v => v + 1) }}
+                       onAnswer={async (kind, value) => { await log({ kind }, value) }} />
+        )}
       </section>
-
-      {profile.podcast_picks !== false && <PodcastCard profile={profile} cycle={cycle} today={today} />}
     </main>
   )
 }
